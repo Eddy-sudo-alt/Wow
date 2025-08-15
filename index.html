@@ -3,20 +3,34 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>Mini WoW – Browser Slice</title>
+<title>WoW × Mobile Legends × Anno – Mini Hybrid</title>
 <style>
   html,body{margin:0;height:100%;background:#0b0b12;font-family:system-ui,Arial}
   #game{width:100vw;height:100vh;display:block}
-  /* UI */
-  .btn{position:fixed;bottom:22px;right:22px;width:74px;height:74px;
-       border-radius:50%;background:rgba(255,255,255,.12);backdrop-filter:blur(8px);
-       border:1px solid rgba(255,255,255,.35);color:#fff;font-size:28px}
-  .hud{position:fixed;left:16px;top:14px;color:#fff;font-weight:700;
+
+  /* HUD */
+  .hud{position:fixed;left:12px;top:12px;color:#fff;font-weight:700;
        background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);
-       padding:8px 12px;border-radius:12px;font-size:14px}
+       padding:8px 12px;border-radius:12px;font-size:14px;z-index:4}
+
+  /* Build toggle & panel */
+  .build-toggle{position:fixed;right:12px;top:12px;z-index:5}
+  .btn{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.35);
+       background:rgba(255,255,255,.12);backdrop-filter:blur(8px);color:#fff;font-weight:700}
+  .panel{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:5;
+         display:none;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);
+         padding:8px 10px;border-radius:14px}
+  .panel .b{min-width:92px}
+  .panel .b small{opacity:.8;font-weight:600}
+
+  /* Attack button */
+  .attack{position:fixed;bottom:22px;right:22px;width:74px;height:74px;border-radius:50%;
+          background:rgba(255,255,255,.12);backdrop-filter:blur(8px);
+          border:1px solid rgba(255,255,255,.35);color:#fff;font-size:28px;z-index:4}
+
   /* Joystick */
   .joy{position:fixed;left:22px;bottom:22px;width:140px;height:140px;border-radius:50%;
-       background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.25)}
+       background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.25);z-index:4}
   .joy .knob{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
        width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.25);
        border:1px solid rgba(255,255,255,.4)}
@@ -25,230 +39,373 @@
 </head>
 <body>
 <div id="game"></div>
-<div class="hud" id="hud">HP 100 | LV 1 | XP 0 | Gold 0</div>
-<button id="attack" class="btn">⚔︎</button>
+
+<div class="hud" id="hud">HP 100 | LV 1 | XP 0 | Gold 120 | Holz 40</div>
+
+<div class="build-toggle">
+  <button class="btn" id="toggleBuild">Bauen ▾</button>
+</div>
+<div class="panel" id="buildPanel">
+  <button class="btn b" data-type="farm">🌾 Farm<br><small>50 Gold</small></button>
+  <button class="btn b" data-type="lumber">🪵 Lumber Mill<br><small>30 Gold</small></button>
+  <button class="btn b" data-type="tower">🏰 Turm<br><small>60 Holz</small></button>
+  <button class="btn b" data-type="barracks">⚔️ Kaserne<br><small>80G + 20H</small></button>
+</div>
+
+<button id="attack" class="attack">⚔︎</button>
 <div class="joy" id="joy"><div class="knob" id="knob"></div></div>
 
 <script>
-/* ---------- Virtual Joystick (simple) ---------- */
+/* ========= Virtual Joystick ========= */
 const joy = document.getElementById('joy');
 const knob = document.getElementById('knob');
-const joyCenter = () => {
-  const r = joy.getBoundingClientRect();
-  return { x: r.left + r.width/2, y: r.top + r.height/2, rad: r.width/2 };
-};
-let joyVec = {x:0,y:0};
-let touching = false;
-
-const clamp = (x,min,max)=>Math.max(min,Math.min(max,x));
-
-function handleJoyStart(e){
-  touching = true;
-  handleJoyMove(e);
-}
-function handleJoyMove(e){
+const joyCenter = () => { const r = joy.getBoundingClientRect(); return { x:r.left+r.width/2, y:r.top+r.height/2, rad:r.width/2 }; };
+let joyVec = {x:0,y:0}, touching=false;
+function joyStart(e){ touching=true; joyMove(e); }
+function joyMove(e){
   if(!touching) return;
-  const p = (e.touches && e.touches[0]) || e;
-  const c = joyCenter();
-  const dx = p.clientX - c.x, dy = p.clientY - c.y;
-  const dist = Math.hypot(dx,dy);
-  const max = c.rad - 20;
-  const nx = dist>0 ? dx/dist : 0, ny = dist>0 ? dy/dist : 0;
-  const mag = Math.min(dist, max);
+  const p = (e.touches && e.touches[0]) || e, c = joyCenter();
+  const dx=p.clientX-c.x, dy=p.clientY-c.y, dist=Math.hypot(dx,dy), max=c.rad-20;
+  const nx = dist>0 ? dx/dist : 0, ny = dist>0 ? dy/dist : 0, mag = Math.min(dist,max);
   knob.style.left = (50 + (nx*mag)/(c.rad)*50) + '%';
   knob.style.top  = (50 + (ny*mag)/(c.rad)*50) + '%';
-  joyVec.x = nx * (mag/max);
-  joyVec.y = ny * (mag/max);
+  joyVec.x = nx*(mag/max); joyVec.y = ny*(mag/max);
 }
-function handleJoyEnd(){
-  touching = false; joyVec={x:0,y:0};
-  knob.style.left='50%'; knob.style.top='50%';
-}
-joy.addEventListener('touchstart',handleJoyStart,{passive:false});
-joy.addEventListener('touchmove', handleJoyMove, {passive:false});
-joy.addEventListener('touchend', handleJoyEnd);
-joy.addEventListener('mousedown',handleJoyStart);
-window.addEventListener('mousemove',handleJoyMove);
-window.addEventListener('mouseup',handleJoyEnd);
+function joyEnd(){ touching=false; joyVec={x:0,y:0}; knob.style.left='50%'; knob.style.top='50%'; }
+joy.addEventListener('touchstart',joyStart,{passive:false}); joy.addEventListener('touchmove',joyMove,{passive:false}); joy.addEventListener('touchend',joyEnd);
+joy.addEventListener('mousedown',joyStart); window.addEventListener('mousemove',joyMove); window.addEventListener('mouseup',joyEnd);
 
-/* ---------- Phaser Game ---------- */
+/* ========= Build UI ========= */
+const toggleBtn = document.getElementById('toggleBuild');
+const buildPanel = document.getElementById('buildPanel');
+let buildMode = null;
+toggleBtn.onclick = ()=>{
+  buildPanel.style.display = (buildPanel.style.display==='flex'?'none':'flex');
+  if(buildPanel.style.display==='') buildPanel.style.display='flex';
+  if(buildPanel.style.display==='flex'){ buildPanel.style.gap='8px'; }
+};
+buildPanel.querySelectorAll('button').forEach(b=>{
+  b.onclick = ()=>{ buildMode = b.dataset.type; toggleBtn.textContent = 'Bauen: '+b.textContent.split('\n')[0]+' ✓'; };
+});
+
+/* ========= Game State ========= */
 const hud = document.getElementById('hud');
 const attackBtn = document.getElementById('attack');
 
+const state = {
+  gold:120, wood:40,
+  hp:100, maxHP:100, lvl:1, xp:0, nextXP:20,
+  speed:220
+};
+
+const costs = {
+  farm:     {gold:50, wood:0},
+  lumber:   {gold:30, wood:0},
+  tower:    {gold:0,  wood:60},
+  barracks: {gold:80, wood:20}
+};
+
+function canAfford(type){
+  const c = costs[type]; return state.gold>=c.gold && state.wood>=c.wood;
+}
+function pay(type){ const c = costs[type]; state.gold -= c.gold; state.wood -= c.wood; refreshHUD(); }
+
+/* ========= Phaser Setup ========= */
 const config = {
   type: Phaser.AUTO,
   parent: 'game',
   width: window.innerWidth,
   height: window.innerHeight,
   backgroundColor: '#0b0b12',
-  physics: { default: 'arcade', arcade: { gravity:{y:0}, debug:false }},
+  physics: { default:'arcade', arcade:{ gravity:{y:0}, debug:false } },
   scene: { preload, create, update }
 };
 const game = new Phaser.Game(config);
 
-let player, enemies, cursors, worldLayer, cam;
-let stats = { hp:100, maxHP:100, speed:210, xp:0, lvl:1, nextXP:20, gold:0 };
-let lastAttack = 0, atkCD = 300; // ms
-let facing = new Phaser.Math.Vector2(0,1);
+let sceneRef, player, cam, trees=[], buildings=[], towers=[], barracks=[], allyMinions, enemyMinions;
+let W=2600, H=1800;
+const allyBase = { x: 220, y: H/2, hp: 600 };
+const enemyBase= { x: W-220, y: H/2, hp: 600 };
 
 function gradientTexture(scene, w, h){
-  const g = scene.textures.createCanvas('grad', w, h);
-  const ctx = g.getContext();
+  const k = 'grad_'+w+'x'+h;
+  if(scene.textures.exists(k)) return k;
+  const g = scene.textures.createCanvas(k, w, h); const ctx = g.getContext();
   const grd = ctx.createRadialGradient(w*0.3,h*0.3,10, w*0.7,h*0.7, Math.max(w,h));
-  grd.addColorStop(0,'#4b53ff');
-  grd.addColorStop(0.6,'#7a2cff');
-  grd.addColorStop(1,'#000000');
-  ctx.fillStyle = grd; ctx.fillRect(0,0,w,h);
-  g.refresh();
-  return 'grad';
+  grd.addColorStop(0,'#4b53ff'); grd.addColorStop(0.6,'#7a2cff'); grd.addColorStop(1,'#000000');
+  ctx.fillStyle = grd; ctx.fillRect(0,0,w,h); g.refresh(); return k;
 }
 
-function preload(){
-  // nothing external – all drawn at runtime
-}
+function preload(){}
 
 function create(){
-  const W=2400,H=2400;
-  const texKey = gradientTexture(this, W, H);
-  this.add.image(W/2,H/2, texKey).setDisplaySize(W,H).setDepth(-5);
+  const scene = this; sceneRef = scene;
 
-  // soft decoration
-  for(let i=0;i<120;i++){
-    const c = this.add.circle(Phaser.Math.Between(40,W-40),
-                              Phaser.Math.Between(40,H-40),
-                              Phaser.Math.Between(6,14), 0xffffff, 0.07);
-    c.setStrokeStyle(1,0xffffff,0.15).setDepth(-1);
+  // Hintergrund
+  scene.add.image(W/2,H/2, gradientTexture(scene,W,H)).setDisplaySize(W,H).setDepth(-10);
+
+  // Wälder (Ressourcen)
+  for(let i=0;i<26;i++){
+    const x = Phaser.Math.Between(400,W-400), y = Phaser.Math.Between(220,H-220);
+    const r = Phaser.Math.Between(40,90);
+    const c = scene.add.circle(x,y,r,0x1f8f2b,0.9).setDepth(-1);
+    c.setStrokeStyle(2,0x0e4f19,0.9);
+    trees.push({x,y,r,node:c});
   }
 
-  // player
-  player = this.add.circle(W/2,H/2, 22, 0x18d2d1, 1);
-  this.physics.add.existing(player);
-  player.body.setCollideWorldBounds(true);
-  player.hpBar = this.add.rectangle(0, -34, 70, 8, 0xffffff, 0.18).setOrigin(0.5);
-  player.hpFill = this.add.rectangle(0, -34, 70, 8, 0xffffff, 0.55).setOrigin(0.5);
-  player.add = (child)=>{ child.setDepth(2); };
-  player.setDepth(2);
-  this.container = this.add.container(player.x, player.y,[player.hpBar, player.hpFill]).setDepth(3);
+  // Basen
+  const aBase = scene.add.circle(allyBase.x, allyBase.y, 60, 0x2bd1ff, 0.25).setStrokeStyle(2,0xffffff,0.4);
+  const eBase = scene.add.circle(enemyBase.x,enemyBase.y, 60, 0xff2b6e, 0.25).setStrokeStyle(2,0xffffff,0.4);
+  aBase.setDepth(-2); eBase.setDepth(-2);
 
-  // enemies
-  enemies = this.physics.add.group();
-  for(let i=0;i<10;i++){
-    const e = this.add.circle(Phaser.Math.Between(120,W-120),
-                              Phaser.Math.Between(120,H-120), 20, 0xff4d6d, 1);
-    this.physics.add.existing(e); e.body.setCollideWorldBounds(true);
-    e.hp = 60; e.speed = 160;
-    enemies.add(e);
-  }
+  // Spieler
+  player = scene.add.circle(allyBase.x+90, allyBase.y, 22, 0x18d2d1, 1).setDepth(2);
+  scene.physics.add.existing(player); player.body.setCollideWorldBounds(true);
+  player.hpBar = scene.add.rectangle(0,-34,70,8,0xffffff,0.18).setOrigin(0.5);
+  player.hpFill= scene.add.rectangle(0,-34,70,8,0xffffff,0.55).setOrigin(0.5);
+  player.container = scene.add.container(player.x,player.y,[player.hpBar,player.hpFill]).setDepth(3);
 
-  // world bounds
-  this.physics.world.setBounds(0,0,W,H);
+  // Weltgrenzen/Camera
+  scene.physics.world.setBounds(0,0,W,H);
+  cam = scene.cameras.main; cam.setBounds(0,0,W,H); cam.startFollow(player, true, 0.12, 0.12);
 
-  // camera
-  cam = this.cameras.main;
-  cam.setBounds(0,0,W,H);
-  cam.startFollow(player, true, 0.12, 0.12);
+  // Gruppen
+  allyMinions = scene.physics.add.group();
+  enemyMinions = scene.physics.add.group();
 
-  // collisions (simple)
-  enemies.children.iterate(e=>{
-    this.physics.add.overlap(player, e, ()=>{
-      // touch damage (light)
-      damagePlayer(0.05);
-    });
+  // Overlaps: Spieler mit feindlichen Minions (leichter Kontakt-Schaden)
+  scene.physics.add.overlap(player, enemyMinions, ()=> damagePlayer(0.08));
+
+  // Pointer: Bauen
+  scene.input.on('pointerdown', (p)=>{
+    const target = p.event.target;
+    const isUI = target.closest && (target.closest('.panel') || target.closest('.attack') || target.closest('.joy') || target.closest('.build-toggle'));
+    if(isUI) return;
+    if(!buildMode) return;
+    const wx = p.worldX, wy = p.worldY;
+    placeBuilding(buildMode, wx, wy);
   });
 
-  // attack
-  attackBtn.addEventListener('click', ()=> performAttack(this));
+  // Attack
+  attackBtn.addEventListener('click', ()=> heroAttack(scene));
 
-  // resize handling
-  this.scale.on('resize', (gameSize)=>{
-    cam.setViewport(0,0, gameSize.width, gameSize.height);
-  });
-  resizeGame(this);
+  // Economy Tick
+  scene.time.addEvent({ delay:2000, loop:true, callback:econTick });
+
+  // Wave Spawns (Basen)
+  scene.time.addEvent({ delay:6000, loop:true, callback:()=>spawnWave(scene,'ally') });
+  scene.time.addEvent({ delay:6000, loop:true, callback:()=>spawnWave(scene,'enemy') });
+
+  // Responsive
+  scene.scale.on('resize', (gs)=> cam.setViewport(0,0,gs.width,gs.height));
+  resizeGame(scene);
+  refreshHUD();
 }
 
-function update(time, delta){
-  // movement via joystick
+function update(){
+  if(!sceneRef) return;
+  // Movement
   const v = new Phaser.Math.Vector2(joyVec.x, joyVec.y);
-  if(v.length()>0.01){
-    facing.copy(v.normalize());
-  }
-  const spd = stats.speed * (v.length());
-  if(player.body){
-    player.body.setVelocity(v.x*spd, v.y*spd);
-  }
-  // keep hp bar container on player
-  if(this.container){
-    this.container.x = player.x; this.container.y = player.y;
-  }
+  const spd = state.speed * v.length();
+  if(player.body){ player.body.setVelocity(v.x*spd, v.y*spd); }
+  if(player.container){ player.container.x = player.x; player.container.y = player.y; }
 
-  // enemies chase
-  enemies.children.iterate(e=>{
-    if(!e || !e.body) return;
-    const dir = new Phaser.Math.Vector2(player.x - e.x, player.y - e.y);
-    const dist = dir.length();
-    if(dist<420){ dir.normalize(); e.body.setVelocity(dir.x*e.speed, dir.y*e.speed); }
-    else { e.body.setVelocity(0,0); }
+  // Minion simple AI (lauf zum Ziel, prüfe Kampf)
+  stepMinions(allyMinions, enemyBase);
+  stepMinions(enemyMinions, allyBase);
+
+  // Türme: Gegner in Reichweite beschießen
+  const now = performance.now();
+  towers.forEach(t=>{
+    if(now < t.nextShot) return;
+    const target = nearestEnemy(t.x,t.y, 220);
+    if(target){
+      t.nextShot = now + 900;
+      // Treffer-Effekt
+      const bolt = sceneRef.add.line(0,0,t.x,t.y,target.x,target.y,0x00e5ff,0.7).setOrigin(0,0).setLineWidth(2);
+      sceneRef.tweens.add({targets:bolt, alpha:0, duration:120, onComplete:()=>bolt.destroy()});
+      target.hp -= 12; if(target.hp<=0) killMinion(target, target.team==='ally'?'ally':'enemy');
+    }
   });
-
-  // HUD
-  hud.textContent = `HP ${Math.round(stats.hp)} | LV ${stats.lvl} | XP ${stats.xp} | Gold ${stats.gold}`;
 }
 
-function performAttack(scene){
+/* ========= Helpers ========= */
+function refreshHUD(){
+  hud.textContent = `HP ${Math.round(state.hp??state.hp=state.maxHP)} | LV ${state.lvl} | XP ${state.xp} | Gold ${state.gold} | Holz ${state.wood}`;
+}
+function resizeGame(scene){ scene.scale.resize(window.innerWidth, window.innerHeight); }
+
+/* ---- Buildings ---- */
+function placeBuilding(type, x, y){
+  if(!canAfford(type)) { flashInfo('Zu wenig Ressourcen'); return; }
+  // einfache Platzprüfung (Abstand zu anderen Gebäuden)
+  for(const b of buildings){ if(Phaser.Math.Distance.Between(x,y,b.x,b.y) < 90) { flashInfo('Zu nah an Gebäude'); return; } }
+  // nicht direkt auf Basen
+  if(Phaser.Math.Distance.Between(x,y,allyBase.x,allyBase.y)<120 ||
+     Phaser.Math.Distance.Between(x,y,enemyBase.x,enemyBase.y)<120) { flashInfo('Zu nah an Basis'); return; }
+
+  pay(type);
+  let node, meta={type, x, y};
+  if(type==='farm'){
+    node = sceneRef.add.rectangle(x,y,60,46,0xffff88,0.45).setStrokeStyle(2,0xffffff,0.4);
+    meta.yield = {gold:1, wood:0}; meta.tick=2000;
+  } else if(type==='lumber'){
+    node = sceneRef.add.rectangle(x,y,64,48,0x8fe388,0.5).setStrokeStyle(2,0xffffff,0.4);
+    meta.yield = {gold:0, wood:1}; meta.tick=2000; meta.radius=160;
+  } else if(type==='tower'){
+    node = sceneRef.add.circle(x,y,28,0x99e0ff,0.35).setStrokeStyle(2,0xffffff,0.5);
+    meta.tower = true; meta.nextShot = 0;
+    towers.push(meta);
+  } else if(type==='barracks'){
+    node = sceneRef.add.rectangle(x,y,72,54,0xffa4b5,0.45).setStrokeStyle(2,0xffffff,0.4);
+    meta.barracks = true; meta.cool=0; barracks.push(meta);
+  }
+  buildings.push(Object.assign(meta,{node}));
+}
+
+function econTick(){
+  // Basis-Trickle
+  state.gold += 1;
+
+  // Gebäudeerträge
   const now = performance.now();
-  if(now - lastAttack < atkCD) return;
-  lastAttack = now;
-
-  const hitbox = scene.add.rectangle(
-    player.x + facing.x*40, player.y + facing.y*40,
-    60, 24, 0x00e5ff, 0.35
-  ).setAngle(Phaser.Math.RadToDeg(Math.atan2(facing.y,facing.x)));
-  hitbox.setStrokeStyle(1, 0xffffff, 0.5).setDepth(1);
-
-  // check hits
-  enemies.children.iterate(e=>{
-    if(!e || !e.body) return;
-    const r = new Phaser.Geom.Rectangle(hitbox.x - hitbox.width/2, hitbox.y - hitbox.height/2, hitbox.width, hitbox.height);
-    if(Phaser.Geom.Rectangle.Overlaps(r, e.getBounds())){
-      e.hp -= 25;
-      if(e.hp<=0){
-        // drop
-        stats.xp += 5;
-        stats.gold += Phaser.Math.Between(1,3);
-        e.destroy();
-        if(stats.xp >= stats.nextXP){ levelUp(); }
-      }
+  buildings.forEach(b=>{
+    if(b.type==='farm'){
+      state.gold += b.yield.gold;
+    } else if(b.type==='lumber'){
+      // nur wenn nahe Wald
+      const near = trees.some(t=> Phaser.Math.Distance.Between(b.x,b.y,t.x,t.y) <= (b.radius + t.r));
+      if(near) state.wood += b.yield.wood;
+    } else if(b.barracks){
+      // gelegentlich Diener spawnen
+      b.cool = (b.cool||0) - 2000;
+      if(b.cool<=0){ spawnMinion('ally', {x:b.x, y:b.y}); b.cool = 6000; }
     }
   });
 
-  scene.tweens.add({ targets: hitbox, alpha:0, scale:1.15, duration:150, onComplete:()=>hitbox.destroy() });
+  refreshHUD();
+}
+
+/* ---- Combat / Hero ---- */
+let lastAttack=0;
+function heroAttack(scene){
+  const now = performance.now();
+  if(now - lastAttack < 300) return;
+  lastAttack = now;
+  const hit = scene.add.circle(player.x,player.y, 42, 0x00e5ff,0.25).setDepth(1);
+  scene.tweens.add({targets:hit, alpha:0, scale:1.15, duration:140, onComplete:()=>hit.destroy()});
+
+  // Damage um den Helden
+  enemyMinions.children.iterate(e=>{
+    if(!e) return;
+    const d = Phaser.Math.Distance.Between(player.x,player.y, e.x,e.y);
+    if(d<=46){ e.hp -= 28; if(e.hp<=0) killMinion(e,'enemy'); gainXP(4); }
+  });
 }
 
 function damagePlayer(amount){
-  stats.hp = Math.max(0, stats.hp - amount);
-  const p = stats.hp / stats.maxHP;
+  state.hp = Math.max(0, (state.hp ?? state.maxHP) - amount);
+  // update hp bar
+  const p = state.hp / state.maxHP;
   player.hpFill.width = 70 * p;
-  if(stats.hp<=0){ // simple respawn
-    stats.hp = stats.maxHP;
-    player.x += Phaser.Math.Between(-120,120);
-    player.y += Phaser.Math.Between(-120,120);
+  if(state.hp<=0){ // einfacher Respawn
+    state.hp = state.maxHP; refreshHUD();
+    player.x = allyBase.x + Phaser.Math.Between(60,120);
+    player.y = allyBase.y + Phaser.Math.Between(-60,60);
   }
 }
 
-function levelUp(){
-  stats.lvl += 1; stats.xp = 0; stats.nextXP = Math.floor(stats.nextXP * 1.5);
-  stats.maxHP += 20; stats.hp = stats.maxHP; stats.speed += 10;
-  // tiny pop
-  player.setScale(1.08);
-  setTimeout(()=>player.setScale(1),120);
+function gainXP(n){
+  state.xp += n;
+  if(state.xp >= state.nextXP){
+    state.lvl += 1; state.xp = 0; state.nextXP = Math.floor(state.nextXP*1.5);
+    state.maxHP += 20; state.hp = state.maxHP; state.speed += 10;
+    refreshHUD();
+    player.setScale(1.08); setTimeout(()=>player.setScale(1),120);
+  } else { refreshHUD(); }
 }
 
-function resizeGame(scene){
-  scene.scale.resize(window.innerWidth, window.innerHeight);
+/* ---- Minions ---- */
+function spawnWave(scene, team){
+  // aus Basis
+  spawnMinion(team, team==='ally'? {x:allyBase.x+70,y:allyBase.y} : {x:enemyBase.x-70,y:enemyBase.y});
+  // + aus Kasernen
+  if(team==='ally'){
+    barracks.forEach(b=> spawnMinion('ally', {x:b.x+Phaser.Math.Between(-10,10),y:b.y+Phaser.Math.Between(-10,10)}));
+  }
 }
-window.addEventListener('resize', ()=> {
-  if(game && game.scene && game.scene.scenes[0]) resizeGame(game.scene.scenes[0]);
-});
+function spawnMinion(team, pos){
+  const color = team==='ally'? 0x2bd1ff : 0xff2b6e;
+  const m = sceneRef.add.circle(pos.x,pos.y, 16, color, 0.9).setDepth(1);
+  sceneRef.physics.add.existing(m); m.body.setCollideWorldBounds(true);
+  m.team = team; m.hp = 60; m.speed = 120; m.range = 26; m.dmg = 8; m.cd=0;
+  (team==='ally'? allyMinions : enemyMinions).add(m);
+  return m;
+}
+
+function stepMinions(group, targetBase){
+  const enemies = (group===allyMinions ? enemyMinions : allyMinions);
+  group.children.iterate(m=>{
+    if(!m || !m.body) return;
+    // Gegner suchen
+    let target = nearestOpposite(m, enemies, 140);
+    if(target){
+      // kämpfen
+      const dist = Phaser.Math.Distance.Between(m.x,m.y, target.x,target.y);
+      if(dist > m.range) {
+        const dir = new Phaser.Math.Vector2(target.x-m.x, target.y-m.y).normalize();
+        m.body.setVelocity(dir.x*m.speed, dir.y*m.speed);
+      } else {
+        m.body.setVelocity(0,0);
+        if(m.cd<=0){ target.hp -= m.dmg; m.cd=500; if(target.hp<=0) killMinion(target, target.team==='ally'?'ally':'enemy'); }
+      }
+    } else {
+      // zur gegnerischen Basis laufen
+      const dir = new Phaser.Math.Vector2(targetBase.x - m.x, targetBase.y - m.y);
+      const dist = dir.length(); dir.normalize();
+      m.body.setVelocity(dir.x*m.speed, dir.y*m.speed);
+      // Basis treffen, falls nah (grob)
+      if(dist<70){
+        if(targetBase===enemyBase){ enemyBase.hp -= 4; state.gold+=2; }
+        else { allyBase.hp -= 4; }
+      }
+    }
+    m.cd = Math.max(0, m.cd - 16);
+  });
+}
+
+function nearestOpposite(m, enemyGroup, radius){
+  let best=null, bestD=Infinity;
+  enemyGroup.children.iterate(e=>{
+    if(!e) return;
+    const d = Phaser.Math.Distance.Between(m.x,m.y, e.x,e.y);
+    if(d<radius && d<bestD){ best=e; bestD=d; }
+  });
+  return best;
+}
+function nearestEnemy(x,y, radius){
+  let best=null, bestD=Infinity;
+  enemyMinions.children.iterate(e=>{
+    if(!e) return; const d = Phaser.Math.Distance.Between(x,y,e.x,e.y);
+    if(d<radius && d<bestD){ best=e; bestD=d; }
+  });
+  return best;
+}
+function killMinion(e, team){
+  // kleines Ploppen + Loot
+  const puff = sceneRef.add.circle(e.x,e.y, 20, 0xffffff,0.25);
+  sceneRef.tweens.add({targets:puff, alpha:0, scale:1.4, duration:160, onComplete:()=>puff.destroy()});
+  if(team==='enemy'){ state.gold += Phaser.Math.Between(1,3); gainXP(3); }
+  e.destroy(); refreshHUD();
+}
+
+/* ---- UX ---- */
+function flashInfo(msg){
+  const t = sceneRef.add.text(cam.worldView.centerX, cam.worldView.y+40, msg, {fontFamily:'system-ui',fontSize:'16px',color:'#fff'}).setOrigin(0.5).setDepth(100);
+  t.setAlpha(0.0); sceneRef.tweens.add({targets:t, y:t.y-14, alpha:1, duration:120, yoyo:true, hold:400, onComplete:()=>t.destroy()});
+}
+
+window.addEventListener('resize', ()=> { if(game && game.scene && game.scene.scenes[0]) resizeGame(game.scene.scenes[0]); });
 </script>
 </body>
 </html>
