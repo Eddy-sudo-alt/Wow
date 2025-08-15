@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Mini WoW – Browser Slice</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0b12;font-family:system-ui,Arial}
+  #game{width:100vw;height:100vh;display:block}
+  /* UI */
+  .btn{position:fixed;bottom:22px;right:22px;width:74px;height:74px;
+       border-radius:50%;background:rgba(255,255,255,.12);backdrop-filter:blur(8px);
+       border:1px solid rgba(255,255,255,.35);color:#fff;font-size:28px}
+  .hud{position:fixed;left:16px;top:14px;color:#fff;font-weight:700;
+       background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);
+       padding:8px 12px;border-radius:12px;font-size:14px}
+  /* Joystick */
+  .joy{position:fixed;left:22px;bottom:22px;width:140px;height:140px;border-radius:50%;
+       background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.25)}
+  .joy .knob{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+       width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.25);
+       border:1px solid rgba(255,255,255,.4)}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+</head>
+<body>
+<div id="game"></div>
+<div class="hud" id="hud">HP 100 | LV 1 | XP 0 | Gold 0</div>
+<button id="attack" class="btn">⚔︎</button>
+<div class="joy" id="joy"><div class="knob" id="knob"></div></div>
+
+<script>
+/* ---------- Virtual Joystick (simple) ---------- */
+const joy = document.getElementById('joy');
+const knob = document.getElementById('knob');
+const joyCenter = () => {
+  const r = joy.getBoundingClientRect();
+  return { x: r.left + r.width/2, y: r.top + r.height/2, rad: r.width/2 };
+};
+let joyVec = {x:0,y:0};
+let touching = false;
+
+const clamp = (x,min,max)=>Math.max(min,Math.min(max,x));
+
+function handleJoyStart(e){
+  touching = true;
+  handleJoyMove(e);
+}
+function handleJoyMove(e){
+  if(!touching) return;
+  const p = (e.touches && e.touches[0]) || e;
+  const c = joyCenter();
+  const dx = p.clientX - c.x, dy = p.clientY - c.y;
+  const dist = Math.hypot(dx,dy);
+  const max = c.rad - 20;
+  const nx = dist>0 ? dx/dist : 0, ny = dist>0 ? dy/dist : 0;
+  const mag = Math.min(dist, max);
+  knob.style.left = (50 + (nx*mag)/(c.rad)*50) + '%';
+  knob.style.top  = (50 + (ny*mag)/(c.rad)*50) + '%';
+  joyVec.x = nx * (mag/max);
+  joyVec.y = ny * (mag/max);
+}
+function handleJoyEnd(){
+  touching = false; joyVec={x:0,y:0};
+  knob.style.left='50%'; knob.style.top='50%';
+}
+joy.addEventListener('touchstart',handleJoyStart,{passive:false});
+joy.addEventListener('touchmove', handleJoyMove, {passive:false});
+joy.addEventListener('touchend', handleJoyEnd);
+joy.addEventListener('mousedown',handleJoyStart);
+window.addEventListener('mousemove',handleJoyMove);
+window.addEventListener('mouseup',handleJoyEnd);
+
+/* ---------- Phaser Game ---------- */
+const hud = document.getElementById('hud');
+const attackBtn = document.getElementById('attack');
+
+const config = {
+  type: Phaser.AUTO,
+  parent: 'game',
+  width: window.innerWidth,
+  height: window.innerHeight,
+  backgroundColor: '#0b0b12',
+  physics: { default: 'arcade', arcade: { gravity:{y:0}, debug:false }},
+  scene: { preload, create, update }
+};
+const game = new Phaser.Game(config);
+
+let player, enemies, cursors, worldLayer, cam;
+let stats = { hp:100, maxHP:100, speed:210, xp:0, lvl:1, nextXP:20, gold:0 };
+let lastAttack = 0, atkCD = 300; // ms
+let facing = new Phaser.Math.Vector2(0,1);
+
+function gradientTexture(scene, w, h){
+  const g = scene.textures.createCanvas('grad', w, h);
+  const ctx = g.getContext();
+  const grd = ctx.createRadialGradient(w*0.3,h*0.3,10, w*0.7,h*0.7, Math.max(w,h));
+  grd.addColorStop(0,'#4b53ff');
+  grd.addColorStop(0.6,'#7a2cff');
+  grd.addColorStop(1,'#000000');
+  ctx.fillStyle = grd; ctx.fillRect(0,0,w,h);
+  g.refresh();
+  return 'grad';
+}
+
+function preload(){
+  // nothing external – all drawn at runtime
+}
+
+function create(){
+  const W=2400,H=2400;
+  const texKey = gradientTexture(this, W, H);
+  this.add.image(W/2,H/2, texKey).setDisplaySize(W,H).setDepth(-5);
+
+  // soft decoration
+  for(let i=0;i<120;i++){
+    const c = this.add.circle(Phaser.Math.Between(40,W-40),
+                              Phaser.Math.Between(40,H-40),
+                              Phaser.Math.Between(6,14), 0xffffff, 0.07);
+    c.setStrokeStyle(1,0xffffff,0.15).setDepth(-1);
+  }
+
+  // player
+  player = this.add.circle(W/2,H/2, 22, 0x18d2d1, 1);
+  this.physics.add.existing(player);
+  player.body.setCollideWorldBounds(true);
+  player.hpBar = this.add.rectangle(0, -34, 70, 8, 0xffffff, 0.18).setOrigin(0.5);
+  player.hpFill = this.add.rectangle(0, -34, 70, 8, 0xffffff, 0.55).setOrigin(0.5);
+  player.add = (child)=>{ child.setDepth(2); };
+  player.setDepth(2);
+  this.container = this.add.container(player.x, player.y,[player.hpBar, player.hpFill]).setDepth(3);
+
+  // enemies
+  enemies = this.physics.add.group();
+  for(let i=0;i<10;i++){
+    const e = this.add.circle(Phaser.Math.Between(120,W-120),
+                              Phaser.Math.Between(120,H-120), 20, 0xff4d6d, 1);
+    this.physics.add.existing(e); e.body.setCollideWorldBounds(true);
+    e.hp = 60; e.speed = 160;
+    enemies.add(e);
+  }
+
+  // world bounds
+  this.physics.world.setBounds(0,0,W,H);
+
+  // camera
+  cam = this.cameras.main;
+  cam.setBounds(0,0,W,H);
+  cam.startFollow(player, true, 0.12, 0.12);
+
+  // collisions (simple)
+  enemies.children.iterate(e=>{
+    this.physics.add.overlap(player, e, ()=>{
+      // touch damage (light)
+      damagePlayer(0.05);
+    });
+  });
+
+  // attack
+  attackBtn.addEventListener('click', ()=> performAttack(this));
+
+  // resize handling
+  this.scale.on('resize', (gameSize)=>{
+    cam.setViewport(0,0, gameSize.width, gameSize.height);
+  });
+  resizeGame(this);
+}
+
+function update(time, delta){
+  // movement via joystick
+  const v = new Phaser.Math.Vector2(joyVec.x, joyVec.y);
+  if(v.length()>0.01){
+    facing.copy(v.normalize());
+  }
+  const spd = stats.speed * (v.length());
+  if(player.body){
+    player.body.setVelocity(v.x*spd, v.y*spd);
+  }
+  // keep hp bar container on player
+  if(this.container){
+    this.container.x = player.x; this.container.y = player.y;
+  }
+
+  // enemies chase
+  enemies.children.iterate(e=>{
+    if(!e || !e.body) return;
+    const dir = new Phaser.Math.Vector2(player.x - e.x, player.y - e.y);
+    const dist = dir.length();
+    if(dist<420){ dir.normalize(); e.body.setVelocity(dir.x*e.speed, dir.y*e.speed); }
+    else { e.body.setVelocity(0,0); }
+  });
+
+  // HUD
+  hud.textContent = `HP ${Math.round(stats.hp)} | LV ${stats.lvl} | XP ${stats.xp} | Gold ${stats.gold}`;
+}
+
+function performAttack(scene){
+  const now = performance.now();
+  if(now - lastAttack < atkCD) return;
+  lastAttack = now;
+
+  const hitbox = scene.add.rectangle(
+    player.x + facing.x*40, player.y + facing.y*40,
+    60, 24, 0x00e5ff, 0.35
+  ).setAngle(Phaser.Math.RadToDeg(Math.atan2(facing.y,facing.x)));
+  hitbox.setStrokeStyle(1, 0xffffff, 0.5).setDepth(1);
+
+  // check hits
+  enemies.children.iterate(e=>{
+    if(!e || !e.body) return;
+    const r = new Phaser.Geom.Rectangle(hitbox.x - hitbox.width/2, hitbox.y - hitbox.height/2, hitbox.width, hitbox.height);
+    if(Phaser.Geom.Rectangle.Overlaps(r, e.getBounds())){
+      e.hp -= 25;
+      if(e.hp<=0){
+        // drop
+        stats.xp += 5;
+        stats.gold += Phaser.Math.Between(1,3);
+        e.destroy();
+        if(stats.xp >= stats.nextXP){ levelUp(); }
+      }
+    }
+  });
+
+  scene.tweens.add({ targets: hitbox, alpha:0, scale:1.15, duration:150, onComplete:()=>hitbox.destroy() });
+}
+
+function damagePlayer(amount){
+  stats.hp = Math.max(0, stats.hp - amount);
+  const p = stats.hp / stats.maxHP;
+  player.hpFill.width = 70 * p;
+  if(stats.hp<=0){ // simple respawn
+    stats.hp = stats.maxHP;
+    player.x += Phaser.Math.Between(-120,120);
+    player.y += Phaser.Math.Between(-120,120);
+  }
+}
+
+function levelUp(){
+  stats.lvl += 1; stats.xp = 0; stats.nextXP = Math.floor(stats.nextXP * 1.5);
+  stats.maxHP += 20; stats.hp = stats.maxHP; stats.speed += 10;
+  // tiny pop
+  player.setScale(1.08);
+  setTimeout(()=>player.setScale(1),120);
+}
+
+function resizeGame(scene){
+  scene.scale.resize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', ()=> {
+  if(game && game.scene && game.scene.scenes[0]) resizeGame(game.scene.scenes[0]);
+});
+</script>
+</body>
+</html>
