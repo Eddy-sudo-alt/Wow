@@ -1,411 +1,415 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>WoW × Mobile Legends × Anno – Mini Hybrid</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wasserspaß — Bötchen</title>
 <style>
-  html,body{margin:0;height:100%;background:#0b0b12;font-family:system-ui,Arial}
-  #game{width:100vw;height:100vh;display:block}
-
-  /* HUD */
-  .hud{position:fixed;left:12px;top:12px;color:#fff;font-weight:700;
-       background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);
-       padding:8px 12px;border-radius:12px;font-size:14px;z-index:4}
-
-  /* Build toggle & panel */
-  .build-toggle{position:fixed;right:12px;top:12px;z-index:5}
-  .btn{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.35);
-       background:rgba(255,255,255,.12);backdrop-filter:blur(8px);color:#fff;font-weight:700}
-  .panel{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:5;
-         display:none;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);
-         padding:8px 10px;border-radius:14px}
-  .panel .b{min-width:92px}
-  .panel .b small{opacity:.8;font-weight:600}
-
-  /* Attack button */
-  .attack{position:fixed;bottom:22px;right:22px;width:74px;height:74px;border-radius:50%;
-          background:rgba(255,255,255,.12);backdrop-filter:blur(8px);
-          border:1px solid rgba(255,255,255,.35);color:#fff;font-size:28px;z-index:4}
-
-  /* Joystick */
-  .joy{position:fixed;left:22px;bottom:22px;width:140px;height:140px;border-radius:50%;
-       background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.25);z-index:4}
-  .joy .knob{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-       width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.25);
-       border:1px solid rgba(255,255,255,.4)}
+  :root{
+    --bg:#e9f6ff;
+    --water-top:#9fd9ff;
+    --water-bottom:#5fb0e6;
+    --panel: rgba(255,255,255,0.85);
+    --accent:#ffb86b;
+    --muted:#556;
+    --glass: rgba(255,255,255,0.6);
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:var(--muted);}
+  body{display:flex;flex-direction:column;background:linear-gradient(180deg,var(--bg),#dff3ff 40%);}
+  header{padding:12px 16px;display:flex;align-items:center;gap:12px;}
+  h1{font-size:16px;margin:0}
+  p.hint{margin:0;font-size:12px;color:#445;opacity:0.9}
+  .controls{
+    margin:8px 16px;display:flex;gap:8px;align-items:center;
+  }
+  button{
+    background:var(--panel);border:1px solid rgba(0,0,0,0.05);
+    padding:8px 12px;border-radius:10px;font-size:14px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  }
+  button.secondary{background:transparent;border:1px solid rgba(0,0,0,0.06);}
+  #container{flex:1;display:flex;align-items:center;justify-content:center;padding:8px;}
+  .stage{
+    width:100%;max-width:900px;height:70vh;min-height:360px;border-radius:18px;overflow:hidden;
+    box-shadow: 0 8px 30px rgba(30,50,80,0.08);position:relative;background:linear-gradient(#fff0, rgba(0,0,0,0.02));
+  }
+  canvas{display:block;width:100%;height:100%;}
+  .ui-bottom{position:absolute;left:12px;right:12px;bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;pointer-events:none}
+  .panel{pointer-events:auto;background:var(--glass);padding:8px 10px;border-radius:12px;backdrop-filter:blur(6px);display:flex;gap:8px;align-items:center;}
+  .stat{font-size:13px;color:#123;}
+  .small{font-size:12px;color:#234}
+  footer{padding:10px 16px;font-size:12px;color:#556;text-align:center}
+  /* boat cursor */
+  .grabbing { cursor: grabbing; }
+  @media (max-width:640px){
+    h1{font-size:14px}
+    .controls{flex-wrap:wrap}
+  }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
 </head>
 <body>
-<div id="game"></div>
+<header>
+  <div>
+    <h1>Wasserspaß — kleine Bötchen</h1>
+    <p class="hint">Tippe/ziehe ein Boot, füge neue Boote hinzu, spiel mit Wind oder beruhige das Wasser.</p>
+  </div>
+</header>
 
-<div class="hud" id="hud">HP 100 | LV 1 | XP 0 | Gold 120 | Holz 40</div>
-
-<div class="build-toggle">
-  <button class="btn" id="toggleBuild">Bauen ▾</button>
+<div class="controls">
+  <button id="addBoat">+ Boot hinzufügen</button>
+  <button id="calm" class="secondary">Wasser beruhigen</button>
+  <button id="wind" class="secondary">Kurz Wind</button>
+  <div style="flex:1"></div>
+  <div class="panel">
+    <div class="stat" id="boatCount">Boote: 0</div>
+    <div style="width:10px"></div>
+    <div class="small">Berührung/freigeben, um Boote zu platzieren</div>
+  </div>
 </div>
-<div class="panel" id="buildPanel">
-  <button class="btn b" data-type="farm">🌾 Farm<br><small>50 Gold</small></button>
-  <button class="btn b" data-type="lumber">🪵 Lumber Mill<br><small>30 Gold</small></button>
-  <button class="btn b" data-type="tower">🏰 Turm<br><small>60 Holz</small></button>
-  <button class="btn b" data-type="barracks">⚔️ Kaserne<br><small>80G + 20H</small></button>
+
+<div id="container">
+  <div class="stage" id="stage" role="application" aria-label="Entspannendes Wasser mit Booten">
+    <canvas id="c"></canvas>
+    <div class="ui-bottom">
+      <div class="panel small">Schau dir die Wellen an — entspann dich.</div>
+      <div class="panel small" id="fps">— fps</div>
+    </div>
+  </div>
 </div>
 
-<button id="attack" class="attack">⚔︎</button>
-<div class="joy" id="joy"><div class="knob" id="knob"></div></div>
+<footer>Kein Wettbewerb • Nur Entspannung • Für Touch & Desktop</footer>
 
 <script>
-/* ========= Virtual Joystick ========= */
-const joy = document.getElementById('joy');
-const knob = document.getElementById('knob');
-const joyCenter = () => { const r = joy.getBoundingClientRect(); return { x:r.left+r.width/2, y:r.top+r.height/2, rad:r.width/2 }; };
-let joyVec = {x:0,y:0}, touching=false;
-function joyStart(e){ touching=true; joyMove(e); }
-function joyMove(e){
-  if(!touching) return;
-  const p = (e.touches && e.touches[0]) || e, c = joyCenter();
-  const dx=p.clientX-c.x, dy=p.clientY-c.y, dist=Math.hypot(dx,dy), max=c.rad-20;
-  const nx = dist>0 ? dx/dist : 0, ny = dist>0 ? dy/dist : 0, mag = Math.min(dist,max);
-  knob.style.left = (50 + (nx*mag)/(c.rad)*50) + '%';
-  knob.style.top  = (50 + (ny*mag)/(c.rad)*50) + '%';
-  joyVec.x = nx*(mag/max); joyVec.y = ny*(mag/max);
+/* --- Setup --- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', {alpha:true});
+let DPR = Math.max(1, devicePixelRatio || 1);
+function resize(){
+  DPR = Math.max(1, devicePixelRatio || 1);
+  canvas.width = canvas.clientWidth * DPR;
+  canvas.height = canvas.clientHeight * DPR;
 }
-function joyEnd(){ touching=false; joyVec={x:0,y:0}; knob.style.left='50%'; knob.style.top='50%'; }
-joy.addEventListener('touchstart',joyStart,{passive:false}); joy.addEventListener('touchmove',joyMove,{passive:false}); joy.addEventListener('touchend',joyEnd);
-joy.addEventListener('mousedown',joyStart); window.addEventListener('mousemove',joyMove); window.addEventListener('mouseup',joyEnd);
+window.addEventListener('resize', resize);
+resize();
 
-/* ========= Build UI ========= */
-const toggleBtn = document.getElementById('toggleBuild');
-const buildPanel = document.getElementById('buildPanel');
-let buildMode = null;
-toggleBtn.onclick = ()=>{
-  buildPanel.style.display = (buildPanel.style.display==='flex'?'none':'flex');
-  if(buildPanel.style.display==='') buildPanel.style.display='flex';
-  if(buildPanel.style.display==='flex'){ buildPanel.style.gap='8px'; }
+/* --- World parameters --- */
+const world = {
+  time: 0,
+  current: 0.12, // base horizontal current speed (px per second scaled)
+  wind: 0,
+  calmFactor: 1,
+  waveAmp: 10,
+  waveFreq: 0.008,
+  boats: []
 };
-buildPanel.querySelectorAll('button').forEach(b=>{
-  b.onclick = ()=>{ buildMode = b.dataset.type; toggleBtn.textContent = 'Bauen: '+b.textContent.split('\n')[0]+' ✓'; };
+
+/* --- Boat class --- */
+class Boat {
+  constructor(x, y, color='#ff9f6a', size=36){
+    this.x = x; this.y = y;
+    this.vx = (Math.random()-0.5)*0.01;
+    this.vy = 0;
+    this.size = size;
+    this.color = color;
+    this.angle = 0;
+    this.dragging = false;
+    this.id = Math.random().toString(36).slice(2,9);
+    this.floatPhase = Math.random()*Math.PI*2;
+  }
+  draw(ctx, t){
+    const s = this.size;
+    ctx.save();
+    ctx.translate(this.x*DPR, this.y*DPR);
+    ctx.rotate(this.angle);
+    // hull
+    ctx.beginPath();
+    ctx.moveTo(-s*0.6*DPR, 0);
+    ctx.quadraticCurveTo(0, s*0.6*DPR, s*0.6*DPR, 0);
+    ctx.lineTo(s*0.6*DPR, s*0.25*DPR);
+    ctx.lineTo(-s*0.6*DPR, s*0.25*DPR);
+    ctx.closePath();
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    // mast
+    ctx.beginPath();
+    ctx.moveTo(0, -s*0.7*DPR);
+    ctx.lineTo(0, -s*0.1*DPR);
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = Math.max(1, 2*DPR);
+    ctx.stroke();
+    // sail
+    ctx.beginPath();
+    ctx.moveTo(0, -s*0.6*DPR);
+    ctx.lineTo(s*0.25*DPR, -s*0.28*DPR);
+    ctx.lineTo(0, -s*0.28*DPR);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fill();
+    ctx.restore();
+  }
+  update(dt, stageW, stageH){
+    if(!this.dragging){
+      // gentle drift with world current + wind
+      const speed = (world.current + world.wind*0.8) * (this.size*0.02) * DPR;
+      this.vx += speed * dt * 0.06;
+      // some random sway
+      this.vx += (Math.sin((world.time+this.floatPhase)*0.8)+ (Math.random()-0.5)*0.2)*0.0004;
+      // vertical bobbing from waves
+      const waveY = getWaveHeight(this.x) ;
+      const targetY = stageH*0.45 + waveY;
+      // relax toward wave Y
+      this.vy += (targetY - this.y) * 0.02;
+      this.vy *= 0.98;
+      // angle follows small tilt
+      this.angle = Math.atan2(this.vy, this.vx||0.001)*0.05;
+      // update positions
+      this.x += this.vx * dt * 60 / DPR;
+      this.y += this.vy * dt * 60 / DPR;
+      // world wrapping horizontally
+      if(this.x < -50) this.x = stageW + 50;
+      if(this.x > stageW + 50) this.x = -50;
+      // clamp vertical a bit
+      this.y = Math.max(0, Math.min(stageH - 10, this.y));
+      // damp velocities
+      this.vx *= 0.995;
+    }
+  }
+}
+
+/* --- Waves --- */
+function getWaveHeight(x){
+  // x in pixels in canvas coordinates (not DPR-scaled)
+  // combine two sines for organic movement
+  return world.waveAmp * world.calmFactor * (
+    Math.sin((x + world.time*40) * world.waveFreq) * 0.9 +
+    Math.sin((x*0.6 + world.time*20) * world.waveFreq*1.4) * 0.5
+  );
+}
+
+/* --- Draw scene --- */
+let last = performance.now();
+let fpsEl = document.getElementById('fps');
+function frame(now){
+  const dt = Math.min(0.05, (now - last)/1000);
+  last = now;
+  world.time += dt;
+  update(dt);
+  draw();
+  if(fpsEl && typeof now === 'number'){
+    fpsEl.textContent = Math.round(1/dt) + ' fps';
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+function update(dt){
+  // wind decays
+  world.wind *= 0.98;
+  // update boats
+  const rect = canvas.getBoundingClientRect();
+  const stageW = rect.width;
+  const stageH = rect.height;
+  world.boats.forEach(b => b.update(dt, stageW, stageH));
+}
+
+function draw(){
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  // background sky subtle gradient
+  const skyGrad = ctx.createLinearGradient(0,0,0,h*0.6);
+  skyGrad.addColorStop(0, '#ffffff');
+  skyGrad.addColorStop(1, '#e6f7ff');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0,0,w,h);
+  // water area: draw layered waves
+  const rect = canvas.getBoundingClientRect();
+  const stageW = rect.width * DPR;
+  const stageH = rect.height * DPR;
+  const waterTop = stageH*0.35;
+  // water body
+  const g = ctx.createLinearGradient(0, waterTop, 0, stageH);
+  g.addColorStop(0, '#bfe8ff');
+  g.addColorStop(1, '#5fb0e6');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, waterTop, stageW, stageH - waterTop);
+  // draw wave surface line
+  ctx.lineWidth = 2 * DPR;
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.beginPath();
+  for(let px=0; px<=stageW; px+=6*DPR){
+    const wx = px / DPR;
+    const y = waterTop + getWaveHeight(wx);
+    if(px===0) ctx.moveTo(px, y);
+    else ctx.lineTo(px, y);
+  }
+  ctx.stroke();
+  // subtle reflections: draw translucent lines
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = 1*DPR;
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.beginPath();
+  for(let px=0; px<=stageW; px+=20*DPR){
+    const wx = px / DPR;
+    const y = waterTop + getWaveHeight(wx) + 6*DPR;
+    if(px===0) ctx.moveTo(px, y);
+    else ctx.lineTo(px, y);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  // draw boats (sorted by y for layering)
+  const boatsSorted = [...world.boats].sort((a,b)=>a.y-b.y);
+  boatsSorted.forEach(b => b.draw(ctx, world.time));
+}
+
+/* --- Interaction: pointer/touch --- */
+let pointerId = null;
+let picked = null;
+function toLocalCoords(e){
+  const rect = canvas.getBoundingClientRect();
+  let clientX, clientY;
+  if(e.touches && e.touches[0]){
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  } else {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+  const x = (clientX - rect.left);
+  const y = (clientY - rect.top);
+  return {x, y};
+}
+function pickBoatAt(x,y){
+  // pick nearest within radius
+  let best = null; let bestD = 9999;
+  for(const b of world.boats){
+    const dx = b.x - x;
+    const dy = b.y - y;
+    const d = Math.hypot(dx,dy);
+    if(d < Math.max(28, b.size*0.9) && d < bestD){
+      best = b; bestD = d;
+    }
+  }
+  return best;
+}
+
+canvas.addEventListener('pointerdown', (ev)=>{
+  canvas.setPointerCapture(ev.pointerId);
+  pointerId = ev.pointerId;
+  const pos = toLocalCoords(ev);
+  const b = pickBoatAt(pos.x, pos.y);
+  if(b){
+    picked = b;
+    b.dragging = true;
+    b.vx = 0; b.vy = 0;
+    canvas.classList.add('grabbing');
+  } else {
+    // create a boat where tapped
+    addBoatAt(pos.x, pos.y);
+  }
+});
+canvas.addEventListener('pointermove', (ev)=>{
+  if(pointerId !== ev.pointerId) return;
+  if(picked){
+    const pos = toLocalCoords(ev);
+    picked.x = pos.x;
+    picked.y = pos.y;
+  }
+});
+canvas.addEventListener('pointerup', (ev)=>{
+  if(pointerId !== ev.pointerId) return;
+  canvas.releasePointerCapture(ev.pointerId);
+  if(picked){
+    // give flick momentum based on last pointer velocity approximated
+    picked.dragging = false;
+    picked.vx = (Math.random()-0.5)*0.2; // small kick
+    picked.vy = (Math.random()-0.5)*0.1;
+    picked = null;
+    canvas.classList.remove('grabbing');
+  }
+  pointerId = null;
 });
 
-/* ========= Game State ========= */
-const hud = document.getElementById('hud');
-const attackBtn = document.getElementById('attack');
+/* Support older touch events fallback */
+canvas.addEventListener('touchstart', (e)=>{ if(e.touches.length===1){} }, {passive:false});
 
-const state = {
-  gold:120, wood:40,
-  hp:100, maxHP:100, lvl:1, xp:0, nextXP:20,
-  speed:220
+/* --- Controls --- */
+const addBtn = document.getElementById('addBoat');
+const calmBtn = document.getElementById('calm');
+const windBtn = document.getElementById('wind');
+const boatCountEl = document.getElementById('boatCount');
+
+function addBoatAt(x=null,y=null){
+  const rect = canvas.getBoundingClientRect();
+  const w=rect.width, h=rect.height;
+  const posX = x===null ? (Math.random()*w) : x;
+  const posY = y===null ? (h*0.45 + (Math.random()-0.5)*40) : y;
+  const colors = ['#ff9f6a','#ffd66b','#8fd8a3','#9fb7ff','#c79bff'];
+  const b = new Boat(posX, posY, colors[Math.floor(Math.random()*colors.length)], 36 + Math.random()*12);
+  world.boats.push(b);
+  updateBoatCount();
+}
+addBtn.addEventListener('click', ()=> addBoatAt());
+calmBtn.addEventListener('click', ()=>{
+  // reduce wave amplitude briefly
+  world.calmFactor = 0.2;
+  setTimeout(()=> world.calmFactor = 1, 1200);
+});
+windBtn.addEventListener('click', ()=>{
+  world.wind += (Math.random()>0.5?1:-1) * (0.35 + Math.random()*0.6);
+  // gentle gust ends by decay automatically
+});
+
+/* initial boats */
+for(let i=0;i<3;i++) addBoatAt();
+
+function updateBoatCount(){
+  boatCountEl.textContent = 'Boote: ' + world.boats.length;
+}
+updateBoatCount();
+
+/* --- simple autosave state to localStorage so it feels familiar on reload --- */
+function saveState(){
+  try{
+    const s = world.boats.map(b=>({x:b.x,y:b.y,size:b.size,color:b.color}));
+    localStorage.setItem('boats_state_v1', JSON.stringify(s));
+  }catch(e){}
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem('boats_state_v1');
+    if(!raw) return;
+    const arr = JSON.parse(raw);
+    world.boats = arr.map(o => new Boat(o.x,o.y,o.color,o.size));
+    updateBoatCount();
+  }catch(e){}
+}
+window.addEventListener('beforeunload', saveState);
+loadState();
+
+/* --- gentle autosave every 6s --- */
+setInterval(saveState, 6000);
+
+/* allow dragging on small devices with touchstart fallback */
+canvas.addEventListener('mousedown', ()=>{});
+canvas.addEventListener('touchstart',(e)=>{
+  if(e.touches.length===1){
+    // let pointer events handle it on modern devices; prevent scrolling only if touching canvas
+    e.preventDefault();
+  }
+},{passive:false});
+
+/* keyboard support for accessibility — add/remove boats */
+window.addEventListener('keydown', (e)=>{
+  if(e.key === 'a') addBoatAt();
+  if(e.key === 'c') { world.calmFactor = 0.2; setTimeout(()=> world.calmFactor = 1, 1200); }
+});
+
+/* expose a tiny API for potential embedding (optional) */
+window.relaxWater = {
+  addBoat: addBoatAt,
+  calm: ()=> { world.calmFactor=0.2; setTimeout(()=> world.calmFactor=1,1200); },
+  wind: ()=> { world.wind += (Math.random()>0.5?1:-1) * (0.35 + Math.random()*0.6); }
 };
-
-const costs = {
-  farm:     {gold:50, wood:0},
-  lumber:   {gold:30, wood:0},
-  tower:    {gold:0,  wood:60},
-  barracks: {gold:80, wood:20}
-};
-
-function canAfford(type){
-  const c = costs[type]; return state.gold>=c.gold && state.wood>=c.wood;
-}
-function pay(type){ const c = costs[type]; state.gold -= c.gold; state.wood -= c.wood; refreshHUD(); }
-
-/* ========= Phaser Setup ========= */
-const config = {
-  type: Phaser.AUTO,
-  parent: 'game',
-  width: window.innerWidth,
-  height: window.innerHeight,
-  backgroundColor: '#0b0b12',
-  physics: { default:'arcade', arcade:{ gravity:{y:0}, debug:false } },
-  scene: { preload, create, update }
-};
-const game = new Phaser.Game(config);
-
-let sceneRef, player, cam, trees=[], buildings=[], towers=[], barracks=[], allyMinions, enemyMinions;
-let W=2600, H=1800;
-const allyBase = { x: 220, y: H/2, hp: 600 };
-const enemyBase= { x: W-220, y: H/2, hp: 600 };
-
-function gradientTexture(scene, w, h){
-  const k = 'grad_'+w+'x'+h;
-  if(scene.textures.exists(k)) return k;
-  const g = scene.textures.createCanvas(k, w, h); const ctx = g.getContext();
-  const grd = ctx.createRadialGradient(w*0.3,h*0.3,10, w*0.7,h*0.7, Math.max(w,h));
-  grd.addColorStop(0,'#4b53ff'); grd.addColorStop(0.6,'#7a2cff'); grd.addColorStop(1,'#000000');
-  ctx.fillStyle = grd; ctx.fillRect(0,0,w,h); g.refresh(); return k;
-}
-
-function preload(){}
-
-function create(){
-  const scene = this; sceneRef = scene;
-
-  // Hintergrund
-  scene.add.image(W/2,H/2, gradientTexture(scene,W,H)).setDisplaySize(W,H).setDepth(-10);
-
-  // Wälder (Ressourcen)
-  for(let i=0;i<26;i++){
-    const x = Phaser.Math.Between(400,W-400), y = Phaser.Math.Between(220,H-220);
-    const r = Phaser.Math.Between(40,90);
-    const c = scene.add.circle(x,y,r,0x1f8f2b,0.9).setDepth(-1);
-    c.setStrokeStyle(2,0x0e4f19,0.9);
-    trees.push({x,y,r,node:c});
-  }
-
-  // Basen
-  const aBase = scene.add.circle(allyBase.x, allyBase.y, 60, 0x2bd1ff, 0.25).setStrokeStyle(2,0xffffff,0.4);
-  const eBase = scene.add.circle(enemyBase.x,enemyBase.y, 60, 0xff2b6e, 0.25).setStrokeStyle(2,0xffffff,0.4);
-  aBase.setDepth(-2); eBase.setDepth(-2);
-
-  // Spieler
-  player = scene.add.circle(allyBase.x+90, allyBase.y, 22, 0x18d2d1, 1).setDepth(2);
-  scene.physics.add.existing(player); player.body.setCollideWorldBounds(true);
-  player.hpBar = scene.add.rectangle(0,-34,70,8,0xffffff,0.18).setOrigin(0.5);
-  player.hpFill= scene.add.rectangle(0,-34,70,8,0xffffff,0.55).setOrigin(0.5);
-  player.container = scene.add.container(player.x,player.y,[player.hpBar,player.hpFill]).setDepth(3);
-
-  // Weltgrenzen/Camera
-  scene.physics.world.setBounds(0,0,W,H);
-  cam = scene.cameras.main; cam.setBounds(0,0,W,H); cam.startFollow(player, true, 0.12, 0.12);
-
-  // Gruppen
-  allyMinions = scene.physics.add.group();
-  enemyMinions = scene.physics.add.group();
-
-  // Overlaps: Spieler mit feindlichen Minions (leichter Kontakt-Schaden)
-  scene.physics.add.overlap(player, enemyMinions, ()=> damagePlayer(0.08));
-
-  // Pointer: Bauen
-  scene.input.on('pointerdown', (p)=>{
-    const target = p.event.target;
-    const isUI = target.closest && (target.closest('.panel') || target.closest('.attack') || target.closest('.joy') || target.closest('.build-toggle'));
-    if(isUI) return;
-    if(!buildMode) return;
-    const wx = p.worldX, wy = p.worldY;
-    placeBuilding(buildMode, wx, wy);
-  });
-
-  // Attack
-  attackBtn.addEventListener('click', ()=> heroAttack(scene));
-
-  // Economy Tick
-  scene.time.addEvent({ delay:2000, loop:true, callback:econTick });
-
-  // Wave Spawns (Basen)
-  scene.time.addEvent({ delay:6000, loop:true, callback:()=>spawnWave(scene,'ally') });
-  scene.time.addEvent({ delay:6000, loop:true, callback:()=>spawnWave(scene,'enemy') });
-
-  // Responsive
-  scene.scale.on('resize', (gs)=> cam.setViewport(0,0,gs.width,gs.height));
-  resizeGame(scene);
-  refreshHUD();
-}
-
-function update(){
-  if(!sceneRef) return;
-  // Movement
-  const v = new Phaser.Math.Vector2(joyVec.x, joyVec.y);
-  const spd = state.speed * v.length();
-  if(player.body){ player.body.setVelocity(v.x*spd, v.y*spd); }
-  if(player.container){ player.container.x = player.x; player.container.y = player.y; }
-
-  // Minion simple AI (lauf zum Ziel, prüfe Kampf)
-  stepMinions(allyMinions, enemyBase);
-  stepMinions(enemyMinions, allyBase);
-
-  // Türme: Gegner in Reichweite beschießen
-  const now = performance.now();
-  towers.forEach(t=>{
-    if(now < t.nextShot) return;
-    const target = nearestEnemy(t.x,t.y, 220);
-    if(target){
-      t.nextShot = now + 900;
-      // Treffer-Effekt
-      const bolt = sceneRef.add.line(0,0,t.x,t.y,target.x,target.y,0x00e5ff,0.7).setOrigin(0,0).setLineWidth(2);
-      sceneRef.tweens.add({targets:bolt, alpha:0, duration:120, onComplete:()=>bolt.destroy()});
-      target.hp -= 12; if(target.hp<=0) killMinion(target, target.team==='ally'?'ally':'enemy');
-    }
-  });
-}
-
-/* ========= Helpers ========= */
-function refreshHUD(){
-  hud.textContent = `HP ${Math.round(state.hp??state.hp=state.maxHP)} | LV ${state.lvl} | XP ${state.xp} | Gold ${state.gold} | Holz ${state.wood}`;
-}
-function resizeGame(scene){ scene.scale.resize(window.innerWidth, window.innerHeight); }
-
-/* ---- Buildings ---- */
-function placeBuilding(type, x, y){
-  if(!canAfford(type)) { flashInfo('Zu wenig Ressourcen'); return; }
-  // einfache Platzprüfung (Abstand zu anderen Gebäuden)
-  for(const b of buildings){ if(Phaser.Math.Distance.Between(x,y,b.x,b.y) < 90) { flashInfo('Zu nah an Gebäude'); return; } }
-  // nicht direkt auf Basen
-  if(Phaser.Math.Distance.Between(x,y,allyBase.x,allyBase.y)<120 ||
-     Phaser.Math.Distance.Between(x,y,enemyBase.x,enemyBase.y)<120) { flashInfo('Zu nah an Basis'); return; }
-
-  pay(type);
-  let node, meta={type, x, y};
-  if(type==='farm'){
-    node = sceneRef.add.rectangle(x,y,60,46,0xffff88,0.45).setStrokeStyle(2,0xffffff,0.4);
-    meta.yield = {gold:1, wood:0}; meta.tick=2000;
-  } else if(type==='lumber'){
-    node = sceneRef.add.rectangle(x,y,64,48,0x8fe388,0.5).setStrokeStyle(2,0xffffff,0.4);
-    meta.yield = {gold:0, wood:1}; meta.tick=2000; meta.radius=160;
-  } else if(type==='tower'){
-    node = sceneRef.add.circle(x,y,28,0x99e0ff,0.35).setStrokeStyle(2,0xffffff,0.5);
-    meta.tower = true; meta.nextShot = 0;
-    towers.push(meta);
-  } else if(type==='barracks'){
-    node = sceneRef.add.rectangle(x,y,72,54,0xffa4b5,0.45).setStrokeStyle(2,0xffffff,0.4);
-    meta.barracks = true; meta.cool=0; barracks.push(meta);
-  }
-  buildings.push(Object.assign(meta,{node}));
-}
-
-function econTick(){
-  // Basis-Trickle
-  state.gold += 1;
-
-  // Gebäudeerträge
-  const now = performance.now();
-  buildings.forEach(b=>{
-    if(b.type==='farm'){
-      state.gold += b.yield.gold;
-    } else if(b.type==='lumber'){
-      // nur wenn nahe Wald
-      const near = trees.some(t=> Phaser.Math.Distance.Between(b.x,b.y,t.x,t.y) <= (b.radius + t.r));
-      if(near) state.wood += b.yield.wood;
-    } else if(b.barracks){
-      // gelegentlich Diener spawnen
-      b.cool = (b.cool||0) - 2000;
-      if(b.cool<=0){ spawnMinion('ally', {x:b.x, y:b.y}); b.cool = 6000; }
-    }
-  });
-
-  refreshHUD();
-}
-
-/* ---- Combat / Hero ---- */
-let lastAttack=0;
-function heroAttack(scene){
-  const now = performance.now();
-  if(now - lastAttack < 300) return;
-  lastAttack = now;
-  const hit = scene.add.circle(player.x,player.y, 42, 0x00e5ff,0.25).setDepth(1);
-  scene.tweens.add({targets:hit, alpha:0, scale:1.15, duration:140, onComplete:()=>hit.destroy()});
-
-  // Damage um den Helden
-  enemyMinions.children.iterate(e=>{
-    if(!e) return;
-    const d = Phaser.Math.Distance.Between(player.x,player.y, e.x,e.y);
-    if(d<=46){ e.hp -= 28; if(e.hp<=0) killMinion(e,'enemy'); gainXP(4); }
-  });
-}
-
-function damagePlayer(amount){
-  state.hp = Math.max(0, (state.hp ?? state.maxHP) - amount);
-  // update hp bar
-  const p = state.hp / state.maxHP;
-  player.hpFill.width = 70 * p;
-  if(state.hp<=0){ // einfacher Respawn
-    state.hp = state.maxHP; refreshHUD();
-    player.x = allyBase.x + Phaser.Math.Between(60,120);
-    player.y = allyBase.y + Phaser.Math.Between(-60,60);
-  }
-}
-
-function gainXP(n){
-  state.xp += n;
-  if(state.xp >= state.nextXP){
-    state.lvl += 1; state.xp = 0; state.nextXP = Math.floor(state.nextXP*1.5);
-    state.maxHP += 20; state.hp = state.maxHP; state.speed += 10;
-    refreshHUD();
-    player.setScale(1.08); setTimeout(()=>player.setScale(1),120);
-  } else { refreshHUD(); }
-}
-
-/* ---- Minions ---- */
-function spawnWave(scene, team){
-  // aus Basis
-  spawnMinion(team, team==='ally'? {x:allyBase.x+70,y:allyBase.y} : {x:enemyBase.x-70,y:enemyBase.y});
-  // + aus Kasernen
-  if(team==='ally'){
-    barracks.forEach(b=> spawnMinion('ally', {x:b.x+Phaser.Math.Between(-10,10),y:b.y+Phaser.Math.Between(-10,10)}));
-  }
-}
-function spawnMinion(team, pos){
-  const color = team==='ally'? 0x2bd1ff : 0xff2b6e;
-  const m = sceneRef.add.circle(pos.x,pos.y, 16, color, 0.9).setDepth(1);
-  sceneRef.physics.add.existing(m); m.body.setCollideWorldBounds(true);
-  m.team = team; m.hp = 60; m.speed = 120; m.range = 26; m.dmg = 8; m.cd=0;
-  (team==='ally'? allyMinions : enemyMinions).add(m);
-  return m;
-}
-
-function stepMinions(group, targetBase){
-  const enemies = (group===allyMinions ? enemyMinions : allyMinions);
-  group.children.iterate(m=>{
-    if(!m || !m.body) return;
-    // Gegner suchen
-    let target = nearestOpposite(m, enemies, 140);
-    if(target){
-      // kämpfen
-      const dist = Phaser.Math.Distance.Between(m.x,m.y, target.x,target.y);
-      if(dist > m.range) {
-        const dir = new Phaser.Math.Vector2(target.x-m.x, target.y-m.y).normalize();
-        m.body.setVelocity(dir.x*m.speed, dir.y*m.speed);
-      } else {
-        m.body.setVelocity(0,0);
-        if(m.cd<=0){ target.hp -= m.dmg; m.cd=500; if(target.hp<=0) killMinion(target, target.team==='ally'?'ally':'enemy'); }
-      }
-    } else {
-      // zur gegnerischen Basis laufen
-      const dir = new Phaser.Math.Vector2(targetBase.x - m.x, targetBase.y - m.y);
-      const dist = dir.length(); dir.normalize();
-      m.body.setVelocity(dir.x*m.speed, dir.y*m.speed);
-      // Basis treffen, falls nah (grob)
-      if(dist<70){
-        if(targetBase===enemyBase){ enemyBase.hp -= 4; state.gold+=2; }
-        else { allyBase.hp -= 4; }
-      }
-    }
-    m.cd = Math.max(0, m.cd - 16);
-  });
-}
-
-function nearestOpposite(m, enemyGroup, radius){
-  let best=null, bestD=Infinity;
-  enemyGroup.children.iterate(e=>{
-    if(!e) return;
-    const d = Phaser.Math.Distance.Between(m.x,m.y, e.x,e.y);
-    if(d<radius && d<bestD){ best=e; bestD=d; }
-  });
-  return best;
-}
-function nearestEnemy(x,y, radius){
-  let best=null, bestD=Infinity;
-  enemyMinions.children.iterate(e=>{
-    if(!e) return; const d = Phaser.Math.Distance.Between(x,y,e.x,e.y);
-    if(d<radius && d<bestD){ best=e; bestD=d; }
-  });
-  return best;
-}
-function killMinion(e, team){
-  // kleines Ploppen + Loot
-  const puff = sceneRef.add.circle(e.x,e.y, 20, 0xffffff,0.25);
-  sceneRef.tweens.add({targets:puff, alpha:0, scale:1.4, duration:160, onComplete:()=>puff.destroy()});
-  if(team==='enemy'){ state.gold += Phaser.Math.Between(1,3); gainXP(3); }
-  e.destroy(); refreshHUD();
-}
-
-/* ---- UX ---- */
-function flashInfo(msg){
-  const t = sceneRef.add.text(cam.worldView.centerX, cam.worldView.y+40, msg, {fontFamily:'system-ui',fontSize:'16px',color:'#fff'}).setOrigin(0.5).setDepth(100);
-  t.setAlpha(0.0); sceneRef.tweens.add({targets:t, y:t.y-14, alpha:1, duration:120, yoyo:true, hold:400, onComplete:()=>t.destroy()});
-}
-
-window.addEventListener('resize', ()=> { if(game && game.scene && game.scene.scenes[0]) resizeGame(game.scene.scenes[0]); });
 </script>
 </body>
 </html>
