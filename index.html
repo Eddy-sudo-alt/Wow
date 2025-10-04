@@ -3,662 +3,417 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Wasserspaß — Entspannungs-Teich</title>
+<title>Schiffe auf Wasser — Kreisbahn (Top-Down)</title>
 <style>
-:root{
-  --bg-top: #e6f9ff;
-  --bg-bottom: #d9f2ff;
-  --water-top: #bfe8ff;
-  --water-bottom: #5fb0e6;
-  --panel: rgba(255,255,255,0.85);
-  --muted: #234;
-  --accent: #ffb86b;
-  --uiGlass: rgba(255,255,255,0.6);
-  --sun: #ffd36b;
-}
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; color:var(--muted)}
-body{display:flex;flex-direction:column;background:linear-gradient(180deg,var(--bg-top),var(--bg-bottom));}
-header{padding:12px 16px;display:flex;align-items:center;gap:12px}
-h1{margin:0;font-size:16px}
-.hint{font-size:12px;margin:0;color:#2c445b;opacity:0.9}
-.controls{display:flex;gap:8px;padding:8px 16px;flex-wrap:wrap}
-button{
-  background:var(--panel);border:1px solid rgba(0,0,0,0.06);
-  padding:8px 12px;border-radius:10px;font-size:14px;cursor:pointer;
-  box-shadow:0 3px 10px rgba(30,50,80,0.06);
-}
-button.secondary{background:transparent;border:1px solid rgba(0,0,0,0.06)}
-.switch{display:inline-flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--uiGlass);backdrop-filter:blur(6px)}
-#container{flex:1;display:flex;align-items:center;justify-content:center;padding:8px;}
-.stage{width:100%;max-width:980px;height:74vh;min-height:420px;border-radius:18px;overflow:hidden;position:relative;box-shadow:0 12px 40px rgba(20,40,80,0.08);background:linear-gradient(180deg,rgba(255,255,255,0.001), rgba(0,0,0,0.02));}
-canvas{display:block;width:100%;height:100%}
-.ui-bottom{position:absolute;left:12px;right:12px;bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;pointer-events:none}
-.panel{pointer-events:auto;background:var(--uiGlass);padding:8px 10px;border-radius:12px;backdrop-filter:blur(6px);display:flex;gap:8px;align-items:center}
-.small{font-size:12px;color:#123}
-footer{padding:8px 16px;font-size:12px;color:#445;text-align:center}
-
-/* small responsive tweaks */
-@media (max-width:640px){
-  h1{font-size:15px}
-  .controls{gap:6px}
-  .stage{height:68vh;min-height:360px}
-}
-
-/* grabbing cursor */
-.grabbing{cursor:grabbing}
+  :root{
+    --bg:#e8f9ff; --water1:#bfe8ff; --water2:#5fb0e6; --ui:#ffffffcc; --muted:#123;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Roboto,Arial;color:var(--muted);background:linear-gradient(180deg,#f8feff,#e8f9ff);}
+  header{padding:12px 16px}
+  h1{margin:0;font-size:18px}
+  .hint{font-size:13px;margin:4px 0 0 0;color:#345}
+  .controls{display:flex;gap:8px;padding:10px 16px;align-items:center;flex-wrap:wrap}
+  button{background:var(--ui);border:0;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(20,50,80,0.06);cursor:pointer}
+  .stage-wrap{display:flex;align-items:center;justify-content:center;padding:10px;flex:1}
+  .stage{width:100%;max-width:980px;height:74vh;min-height:420px;border-radius:18px;box-shadow:0 14px 40px rgba(20,40,80,0.08);overflow:hidden;position:relative;background:transparent}
+  canvas{display:block;width:100%;height:100%}
+  footer{padding:10px 16px;font-size:13px;color:#445;text-align:center}
+  .panel{position:absolute;left:14px;top:14px;background:var(--ui);padding:8px 10px;border-radius:10px;backdrop-filter:blur(6px);box-shadow:0 4px 12px rgba(0,0,0,0.06)}
+  .small{font-size:13px}
+  @media (max-width:640px){ h1{font-size:16px} .controls{padding:8px} }
 </style>
 </head>
 <body>
 <header>
-  <div>
-    <h1>Wasserspaß — Entspannungs-Teich</h1>
-    <p class="hint">Tippe/ziehe Boote • füge Fische/Seerosen hinzu • Wind & Klang • Speichert automatisch</p>
-  </div>
+  <h1>Schiffe auf Wasser — Top-Down Kreisbahn</h1>
+  <p class="hint">Stilisiertes Spielzeug-Look • Boote kreisen automatisch • Tippe/Klicke = Boot hinzufügen • Ziehen zum lenken</p>
 </header>
 
-<div class="controls" aria-hidden="false">
-  <button id="addBoat">+ Boot</button>
-  <button id="addDuck">+ Ente</button>
-  <button id="addFish">+ Fisch</button>
+<div class="controls">
+  <button id="add">+ Boot</button>
   <button id="addLily">+ Seerose</button>
-  <button id="calm" class="secondary">Beruhigen</button>
-  <button id="gust" class="secondary">Windstoß</button>
-
+  <button id="addFish">+ Fisch</button>
+  <button id="calm">Beruhigen</button>
   <div style="flex:1"></div>
-
-  <label class="switch" title="Klang ein/aus">
-    <input id="toggleSound" type="checkbox" />
-    <span class="small">Klang</span>
-  </label>
-
-  <label class="switch" title="Sonnen-Modus">
-    <input id="toggleSunset" type="checkbox" />
-    <span class="small">Abend</span>
-  </label>
+  <button id="reset">Zurücksetzen</button>
 </div>
 
-<div id="container">
-  <div class="stage" id="stage" role="application" aria-label="Entspannender Teich mit Booten und Tieren">
+<div class="stage-wrap">
+  <div class="stage" id="stage" role="application" aria-label="Teich mit kreisender Bootsbahn">
     <canvas id="c"></canvas>
-
-    <div class="ui-bottom">
-      <div class="panel small" id="status">Boote: 0 • Fische: 0 • Seerosen: 0</div>
-      <div class="panel small" id="fps">— fps</div>
-    </div>
+    <div class="panel small" id="info">Boote: 0 • Seerosen: 0 • Fische: 0</div>
   </div>
 </div>
 
-<footer>Kein Wettbewerb — nur entspannen • Tippe 'a' um Boot zu erzeugen, 'f' Fisch, 'l' Seerose</footer>
+<footer>Tipp: A für Boot, L für Seerose, F für Fisch — Kein Wettbewerb, nur Entspannung.</footer>
 
 <script>
-/* =========================================================
-   Entspannungs-Teich — komplette Single-File Web-App
-   Features:
-   - Sommerlich / abendlich (Toggle)
-   - Boote (ziehbar), Enten, Fische, Seerosen
-   - Wind-Gusts, Beruhigen
-   - Synth-basierte Wasser- / Ambient-Klänge (WebAudio)
-   - Autosave in localStorage
-   - Touch + Mouse + Keyboard
-   ========================================================= */
+/* --- Top-Down Kreisbahn — Stylisiert, single-file --- */
+/* Design: oval path; boats follow angle along path; slight sway; drag to adjust angle; add boats; autosave */
 
-/* -------------------- Canvas / HiDPI setup -------------------- */
 const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d', { alpha: true });
-let DPR = Math.max(1, window.devicePixelRatio || 1);
+const ctx = canvas.getContext('2d');
+let DPR = Math.max(1, devicePixelRatio || 1);
 function resize(){
-  DPR = Math.max(1, window.devicePixelRatio || 1);
+  DPR = Math.max(1, devicePixelRatio || 1);
   canvas.width = canvas.clientWidth * DPR;
   canvas.height = canvas.clientHeight * DPR;
 }
-window.addEventListener('resize', () => { resize(); draw(); });
+window.addEventListener('resize', ()=>{ resize(); draw(); });
 resize();
 
-/* -------------------- World state -------------------- */
+/* World */
 const world = {
   time: 0,
-  wind: 0,          // gust strength
-  calmFactor: 1,    // reduces waves when calming
   boats: [],
-  ducks: [],
-  fish: [],
   lilies: [],
-  sunOffset: 0,     // for sun movement
-  sunset: false,
-  ambientVolume: 0.6
+  fish: [],
+  calmFactor: 1,
+  speedFactor: 1,
+  center: {x:0,y:0}, // px (device coords)
+  rx: 260, ry: 140, // radii of oval path (in CSS px, scaled by DPR when drawing)
 };
 
-const ui = {
-  fpsEl: document.getElementById('fps'),
-  statusEl: document.getElementById('status'),
-  toggleSound: document.getElementById('toggleSound'),
-  toggleSunset: document.getElementById('toggleSunset')
-};
+/* helpers */
+const rand = (a,b)=> Math.random()*(b-a)+a;
+const clamp = (v,a,b)=> Math.max(a,Math.min(b,v));
 
-/* -------------------- Utility -------------------- */
-function rand(min,max){ return Math.random()*(max-min)+min; }
-function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-
-/* -------------------- Entities -------------------- */
+/* Boat model: angle (rad) along oval, radius offset, speed */
 class Boat {
-  constructor(x,y,size=46,color='#ff9f6a'){
-    this.x=x; this.y=y; this.vx=0; this.vy=0; this.size=size; this.color=color;
-    this.angle=0; this.dragging=false; this.phase=Math.random()*Math.PI*2;
+  constructor(angle, color='#ff9f6a', size=28){
+    this.angle = angle; // radians
+    this.offset = rand(-12,12); // orthogonal offset from path
+    this.speed = rand(0.18,0.36); // radians per second baseline
+    this.color = color; this.size = size;
+    this.dragging = false;
     this.id = 'b_'+Math.random().toString(36).slice(2,9);
   }
+  // compute position in CSS pixels (not DPR)
+  pos(){
+    const cx = world.center.x;
+    const cy = world.center.y;
+    const rx = world.rx; const ry = world.ry;
+    const a = this.angle;
+    // base ellipse point
+    let x = cx + rx*Math.cos(a);
+    let y = cy + ry*Math.sin(a);
+    // apply small normal offset outward (normal vector to ellipse)
+    // normal approximated by (cos/a, sin*b/a) scaled
+    const nx = Math.cos(a); const ny = Math.sin(a);
+    x += this.offset * (nx);
+    y += this.offset * (ny);
+    return {x, y};
+  }
+  update(dt){
+    if(!this.dragging){
+      // advance angle
+      // speed slightly modulated by calmFactor and noise
+      const wobble = Math.sin(world.time*1.5 + (this.id.charCodeAt(2)||0))*0.03;
+      this.angle += (this.speed * (0.6 + 0.4*world.calmFactor) + wobble*0.05) * dt * world.speedFactor;
+      // small random drift of offset
+      this.offset += Math.sin(world.time*0.7 + this.angle*2)*0.02;
+      this.offset = clamp(this.offset, -24, 24);
+    }
+  }
+  // draw stylized top-down boat (toy-like)
   draw(ctx){
+    const p = this.pos();
+    const s = this.size * DPR;
     ctx.save();
-    ctx.translate(this.x*DPR,this.y*DPR);
-    ctx.rotate(this.angle);
-    const s=this.size*DPR;
+    ctx.translate(p.x*DPR, p.y*DPR);
+    // rotation: tangent direction on ellipse: derivative -> angle tangent = atan2(ry*cos, -rx*sin) approx
+    const rx = world.rx, ry = world.ry;
+    const a = this.angle;
+    const tx = -rx*Math.sin(a); const ty = ry*Math.cos(a);
+    const rot = Math.atan2(ty, tx);
+    ctx.rotate(rot);
+    // shadow / subtle
+    ctx.beginPath();
+    ctx.ellipse(0, s*0.14, s*0.8, s*0.35, 0, 0, Math.PI*2);
+    ctx.fillStyle = "rgba(0,0,0,0.08)"; ctx.fill();
     // hull
     ctx.beginPath();
     ctx.moveTo(-s*0.6, 0);
-    ctx.quadraticCurveTo(0, s*0.6, s*0.6, 0);
-    ctx.lineTo(s*0.6, s*0.24); ctx.lineTo(-s*0.6, s*0.24);
+    ctx.quadraticCurveTo(0, s*0.7, s*0.6, 0);
+    ctx.lineTo(s*0.5, s*0.22); ctx.lineTo(-s*0.5, s*0.22);
     ctx.closePath();
-    ctx.fillStyle = this.color;
-    ctx.fill();
-    // mast
-    ctx.beginPath(); ctx.moveTo(0, -s*0.72); ctx.lineTo(0, -s*0.08);
-    ctx.strokeStyle='rgba(255,255,255,0.95)'; ctx.lineWidth=Math.max(1,2*DPR); ctx.stroke();
-    // sail
-    ctx.beginPath();
-    ctx.moveTo(0, -s*0.58); ctx.lineTo(s*0.26, -s*0.28); ctx.lineTo(0,-s*0.28); ctx.closePath();
-    ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.fill();
-    ctx.restore();
-  }
-  update(dt, stageW, stageH){
-    if(!this.dragging){
-      // drift with wind/current and bob with waves
-      const base = (0.08 + this.size*0.002) + world.wind*0.5;
-      this.vx += base * dt * 0.6;
-      this.vx += Math.sin((world.time+this.phase)*0.7)*0.002;
-      const waveY = getWaveHeight(this.x);
-      const targetY = stageH*0.44 + waveY;
-      this.vy += (targetY - this.y) * 0.02;
-      this.vy *= 0.985;
-      this.angle = Math.atan2(this.vy, this.vx||0.0001)*0.05;
-      this.x += this.vx * dt * 60 / DPR;
-      this.y += this.vy * dt * 60 / DPR;
-      // wrap
-      if(this.x < -80) this.x = stageW + 80;
-      if(this.x > stageW + 80) this.x = -80;
-      this.y = clamp(this.y, 0, stageH-6);
-      this.vx *= 0.995;
-    }
-  }
-}
-
-class Duck {
-  constructor(x,y,size=30){
-    this.x=x; this.y=y; this.vx=rand(-0.2,0.2); this.vy=0; this.size=size;
-    this.phase=Math.random()*Math.PI*2; this.id='d_'+Math.random().toString(36).slice(2,9);
-  }
-  draw(ctx){
-    ctx.save();
-    ctx.translate(this.x*DPR,this.y*DPR);
-    ctx.rotate(Math.sin(world.time+this.phase)*0.05);
-    const s=this.size*DPR;
-    // body
-    ctx.beginPath(); ctx.ellipse(0,0,s*0.6,s*0.45,0,0,Math.PI*2);
-    ctx.fillStyle = '#ffd66b'; ctx.fill();
-    // head
-    ctx.beginPath(); ctx.arc(s*0.5*-0.12, -s*0.4, s*0.26,0,Math.PI*2); ctx.fillStyle='#ffd66b'; ctx.fill();
-    // beak
-    ctx.beginPath(); ctx.moveTo(s*0.15, -s*0.38); ctx.lineTo(s*0.32, -s*0.34); ctx.lineTo(s*0.15, -s*0.3);
-    ctx.fillStyle = '#ff9b3c'; ctx.fill();
-    // eye
-    ctx.beginPath(); ctx.arc(s*0.48*-0.12, -s*0.42, Math.max(1,1.8*DPR), 0, Math.PI*2); ctx.fillStyle='#222'; ctx.fill();
-    ctx.restore();
-  }
-  update(dt, stageW, stageH){
-    this.vx += (world.wind*0.03 + Math.sin(world.time+this.phase)*0.002);
-    this.x += this.vx * dt * 60 / DPR;
-    this.y += Math.sin(world.time*1.2 + this.phase)*0.2;
-    if(this.x < -60) this.x = stageW + 60;
-    if(this.x > stageW + 60) this.x = -60;
-  }
-}
-
-class Fish {
-  constructor(x,y,size=16,color='#8fd8a3'){
-    this.x=x; this.y=y; this.vx = rand(-0.7,0.7); this.size=size; this.color=color;
-    this.phase=Math.random()*Math.PI*2; this.id='f_'+Math.random().toString(36).slice(2,9);
-  }
-  draw(ctx){
-    ctx.save();
-    ctx.translate(this.x*DPR,this.y*DPR);
-    ctx.rotate(Math.atan2(this.vy||0, this.vx||0));
-    const s=this.size*DPR;
-    // body
-    ctx.beginPath(); ctx.ellipse(0,0,s*0.9,s*0.5,0,0,Math.PI*2);
     ctx.fillStyle = this.color; ctx.fill();
-    // tail
-    ctx.beginPath(); ctx.moveTo(-s*0.9,0); ctx.lineTo(-s*1.3,-s*0.4); ctx.lineTo(-s*1.3,s*0.4); ctx.closePath();
-    ctx.fillStyle = this.color; ctx.fill();
-    // eye
-    ctx.beginPath(); ctx.arc(s*0.35, -s*0.08, Math.max(1,1.2*DPR), 0, Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
-    ctx.beginPath(); ctx.arc(s*0.35, -s*0.08, Math.max(0.6,0.6*DPR), 0, Math.PI*2); ctx.fillStyle='#000'; ctx.fill();
+    // little deck white stripe
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillRect(-s*0.22, -s*0.05, s*0.44, s*0.14);
     ctx.restore();
-  }
-  update(dt, stageW, stageH){
-    const sway = Math.sin((world.time+this.phase)*3)*0.4;
-    this.vx += (Math.random()-0.5)*0.05 + sway*0.01;
-    this.x += this.vx * dt * 60 / DPR;
-    this.y += Math.sin(world.time*2 + this.phase)*0.3;
-    if(this.x < -40) { this.x = stageW + 40; this.vx = rand(-0.2,0.6); }
-    if(this.x > stageW + 40) { this.x = -40; this.vx = rand(-0.6,0.2); }
   }
 }
 
+/* Lily */
 class Lily {
-  constructor(x,y,size=26){
-    this.x=x; this.y=y; this.size=size; this.id='l_'+Math.random().toString(36).slice(2,9);
-    this.phase=Math.random()*Math.PI*2;
-  }
+  constructor(x,y,size=28){ this.x=x; this.y=y; this.size=size; this.id='l_'+Math.random().toString(36).slice(2,9); }
   draw(ctx){
     ctx.save();
     ctx.translate(this.x*DPR, this.y*DPR);
     const s=this.size*DPR;
-    // pad
+    ctx.beginPath(); ctx.ellipse(0,0,s*1.1,s*0.6,0,0,Math.PI*2); ctx.fillStyle='#2f9b5a'; ctx.fill();
     ctx.beginPath();
-    ctx.ellipse(0,0,s*1.2,s*0.7,0,0,Math.PI*2);
-    ctx.fillStyle = '#2f9b5a'; ctx.fill();
-    // flower
-    ctx.beginPath();
-    for(let i=0;i<6;i++){
-      const a = i*(Math.PI*2/6);
-      ctx.ellipse(Math.cos(a)*s*0.18, Math.sin(a)*s*0.18 - s*0.08, s*0.14, s*0.08, a, 0, Math.PI*2);
+    for(let i=0;i<5;i++){
+      const a = i*(Math.PI*2/5);
+      ctx.ellipse(Math.cos(a)*s*0.16, Math.sin(a)*s*0.16 - s*0.06, s*0.12, s*0.07, a, 0, Math.PI*2);
     }
-    ctx.fillStyle = '#fffce6'; ctx.fill();
+    ctx.fillStyle='#fff7e9'; ctx.fill();
     ctx.restore();
   }
 }
 
-/* -------------------- Waves -------------------- */
-function getWaveHeight(x){
-  // x in pixels (not DPR scaled)
-  const amp = 10 * world.calmFactor * (world.sunset ? 0.8 : 1);
-  return amp * (
-    Math.sin((x*0.9 + world.time*40) * 0.008) * 0.85 +
-    Math.sin((x*0.6 + world.time*20) * 0.011) * 0.45
-  );
+/* Fish (decorative) */
+class Fish {
+  constructor(x,y,size=12,color='#8fd8a3'){ this.x=x; this.y=y; this.size=size; this.color=color; this.phase=rand(0,Math.PI*2); }
+  draw(ctx){
+    ctx.save(); ctx.translate(this.x*DPR, this.y*DPR);
+    const s=this.size*DPR;
+    ctx.beginPath(); ctx.ellipse(0,0,s*0.9,s*0.5,0,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-s*0.9,0); ctx.lineTo(-s*1.3,-s*0.32); ctx.lineTo(-s*1.3,s*0.32); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
 }
 
-/* -------------------- Draw scene -------------------- */
+/* initialize center & path based on canvas size (CSS pixels) */
+function setPathParams(){
+  const rect = canvas.getBoundingClientRect();
+  world.center.x = rect.width * 0.5;
+  world.center.y = rect.height * 0.52;
+  // radii scale with smaller dimension
+  const minDim = Math.min(rect.width, rect.height);
+  world.rx = clamp(minDim*0.36, 120, 420);
+  world.ry = clamp(minDim*0.18, 70, 260);
+}
+setPathParams();
+
+/* drawing */
+function draw(){
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  setPathParams();
+  // background plain
+  // draw rounded pond border & fill the water inside (oval)
+  ctx.save();
+  // pond background (ground)
+  ctx.fillStyle = '#dff7e6';
+  ctx.fillRect(0,0,w,h);
+  // water fill
+  ctx.beginPath();
+  ctx.ellipse(world.center.x*DPR, world.center.y*DPR, world.rx*DPR+20*DPR, world.ry*DPR+20*DPR, 0, 0, Math.PI*2);
+  const g = ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0, '#e9fbff'); g.addColorStop(0.5, '#bfe8ff'); g.addColorStop(1, '#66aee0');
+  ctx.fillStyle = g; ctx.fill();
+  // inner water surface (slightly smaller)
+  ctx.beginPath();
+  ctx.ellipse(world.center.x*DPR, world.center.y*DPR, world.rx*DPR, world.ry*DPR, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.fill();
+  // border
+  ctx.lineWidth = 6*DPR; ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+  ctx.stroke();
+  ctx.restore();
+
+  // draw faint wave lines along the path to suggest flow
+  ctx.save();
+  ctx.lineWidth = 2*DPR; ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  for(let i=0;i<10;i++){
+    ctx.beginPath();
+    const phase = i*0.6 + world.time*0.6;
+    for(let t=0;t<=Math.PI*2+0.01;t+=0.04){
+      const rx = world.rx*(1 - 0.02*i);
+      const ry = world.ry*(1 - 0.02*i);
+      const x = world.center.x + rx*Math.cos(t) + Math.sin(phase + t*1.8)*((i+1)*0.6);
+      const y = world.center.y + ry*Math.sin(t) + Math.cos(phase + t*1.3)*((i+1)*0.3);
+      if(t===0) ctx.moveTo(x*DPR, y*DPR); else ctx.lineTo(x*DPR, y*DPR);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // draw lilies
+  world.lilies.forEach(l => l.draw(ctx));
+  // draw fish under boats (smaller)
+  world.fish.forEach(f => f.draw(ctx));
+  // draw boats sorted by y for simple layering
+  const sorted = [...world.boats].sort((a,b)=> a.pos().y - b.pos().y);
+  sorted.forEach(b => b.draw(ctx));
+}
+
+/* update loop */
 let last = performance.now();
 function frame(now){
   const dt = Math.min(0.05, (now-last)/1000);
   last = now;
   world.time += dt;
-  update(dt);
+  // update boats
+  world.boats.forEach(b => b.update(dt));
+  // small gentle fish movement (animate by shift)
+  world.fish.forEach((f,i)=>{ f.x += Math.sin(world.time*1.5 + i)*0.02; f.y += Math.cos(world.time*1.9 + i)*0.015; });
   draw();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
-function update(dt){
-  // decay wind
-  world.wind *= 0.97;
-  // update all entities
-  const rect = canvas.getBoundingClientRect();
-  const stageW = rect.width; const stageH = rect.height;
-  world.boats.forEach(b => b.update(dt, stageW, stageH));
-  world.ducks.forEach(d => d.update(dt, stageW, stageH));
-  world.fish.forEach(f => f.update(dt, stageW, stageH));
-  // sun offset moves slowly
-  if(world.sunset) world.sunOffset += dt*6; else world.sunOffset += dt*1.2;
+/* interactions: add, drag, pick */
+function addBoat(angle=null){
+  // if angle null, place at random around circle
+  const a = (angle === null) ? rand(0, Math.PI*2) : angle;
+  const colors = ['#ff9f6a','#ffd66b','#8fd8a3','#9fb7ff','#c79bff'];
+  const b = new Boat(a, colors[Math.floor(Math.random()*colors.length)], 26 + Math.random()*12);
+  world.boats.push(b); updateInfo(); save();
+  return b;
+}
+function addLily(){
+  // choose a point on water not overlapping boats
+  const t = rand(0,Math.PI*2);
+  const p = ellipticPoint(t, 0);
+  const l = new Lily(p.x, p.y, 18 + Math.random()*16);
+  world.lilies.push(l); updateInfo(); save();
+}
+function addFish(){
+  const t = rand(0,Math.PI*2);
+  const p = ellipticPoint(t, 0.3);
+  const f = new Fish(p.x, p.y, 8 + Math.random()*10, ['#8fd8a3','#9fb7ff','#ffb6c2'][Math.floor(Math.random()*3)]);
+  world.fish.push(f); updateInfo(); save();
 }
 
-function draw(){
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0,0,w,h);
-
-  const rect = canvas.getBoundingClientRect();
-  const stageW = rect.width * DPR, stageH = rect.height * DPR;
-  const waterTop = stageH * 0.35;
-
-  // sky gradient (day vs sunset)
-  const skyGrad = ctx.createLinearGradient(0,0,0,waterTop);
-  if(world.sunset){
-    skyGrad.addColorStop(0, '#FFDCC1');
-    skyGrad.addColorStop(0.6, '#FFEDD7');
-    skyGrad.addColorStop(1, '#FFDFC1');
-  } else {
-    skyGrad.addColorStop(0, '#ffffff');
-    skyGrad.addColorStop(1, '#e6f7ff');
-  }
-  ctx.fillStyle = skyGrad; ctx.fillRect(0,0,stageW,waterTop);
-
-  // sun
-  const sunX = stageW * 0.15 + Math.sin(world.sunOffset*0.2)*stageW*0.05;
-  const sunY = world.sunset ? waterTop*0.6 + Math.sin(world.time*0.4)*15*DPR : waterTop*0.25;
-  const sunRadius = world.sunset ? 64*DPR : 48*DPR;
-  const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunRadius*2);
-  sunGrad.addColorStop(0, 'rgba(255,215,120,0.95)');
-  sunGrad.addColorStop(0.4, 'rgba(255,210,80,0.6)');
-  sunGrad.addColorStop(1, 'rgba(255,200,60,0.08)');
-  ctx.fillStyle = sunGrad;
-  ctx.beginPath(); ctx.arc(sunX, sunY, sunRadius*2, 0, Math.PI*2); ctx.fill();
-
-  // drifting clouds (simple)
-  for(let i=0;i<5;i++){
-    const cx = (i*0.23*stageW + Math.sin(world.time*0.2 + i)*40*DPR) % (stageW+300) - 150;
-    const cy = 50*DPR + i*18*DPR + Math.sin(world.time*0.5 + i)*8*DPR;
-    drawCloud(ctx, cx, cy, 80*DPR, i*0.2);
-  }
-
-  // water body
-  const g = ctx.createLinearGradient(0, waterTop, 0, stageH);
-  if(world.sunset){
-    g.addColorStop(0, '#ffd6a8');
-    g.addColorStop(0.2, '#bfe8ff');
-    g.addColorStop(1, '#5aa0d8');
-  } else {
-    g.addColorStop(0, '#bfe8ff');
-    g.addColorStop(1, '#5fb0e6');
-  }
-  ctx.fillStyle = g; ctx.fillRect(0, waterTop, stageW, stageH - waterTop);
-
-  // wave surface line
-  ctx.lineWidth = 2*DPR;
-  ctx.strokeStyle = world.sunset ? 'rgba(255,255,255,0.38)' : 'rgba(255,255,255,0.45)';
-  ctx.beginPath();
-  for(let px=0; px<=stageW; px+=6*DPR){
-    const wx = px / DPR;
-    const y = (waterTop + getWaveHeight(wx));
-    if(px===0) ctx.moveTo(px, y);
-    else ctx.lineTo(px, y);
-  }
-  ctx.stroke();
-
-  // soft reflection streaks
-  ctx.globalAlpha = 0.28;
-  ctx.lineWidth = 1*DPR; ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-  ctx.beginPath();
-  for(let px=0; px<=stageW; px+=18*DPR){
-    const wx = px / DPR;
-    const y = waterTop + getWaveHeight(wx) + 8*DPR;
-    if(px===0) ctx.moveTo(px, y); else ctx.lineTo(px, y);
-  }
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  // draw lilies first (stationary)
-  world.lilies.forEach(l => l.draw(ctx));
-
-  // draw fish under surface (translate slightly down)
-  world.fish.forEach(f => f.draw(ctx));
-
-  // draw boats (sorted by y)
-  const boatsSorted = [...world.boats].sort((a,b)=>a.y-b.y);
-  boatsSorted.forEach(b => b.draw(ctx));
-
-  // ducks over boats (some)
-  world.ducks.forEach(d => d.draw(ctx));
+function ellipticPoint(angle, offsetNorm=0){
+  // returns {x,y} css px for angle and offset normalized -1..1 (multiplies by offset range)
+  const cx = world.center.x, cy = world.center.y;
+  const rx = world.rx, ry = world.ry;
+  const x = cx + rx*Math.cos(angle);
+  const y = cy + ry*Math.sin(angle);
+  // offset outward normal simple
+  const nx = Math.cos(angle), ny = Math.sin(angle);
+  const off = offsetNorm * 20;
+  return { x: x + nx*off, y: y + ny*off };
 }
 
-/* -------------------- Cloud helper -------------------- */
-function drawCloud(ctx, x,y, scale, alpha){
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.globalAlpha = 0.9 - (alpha*0.2);
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  ctx.beginPath();
-  ctx.ellipse(0,0,scale*0.9,scale*0.52,0,0,Math.PI*2);
-  ctx.ellipse(scale*0.6,-scale*0.08,scale*0.6,scale*0.34,0,0,Math.PI*2);
-  ctx.ellipse(-scale*0.5,-scale*0.12,scale*0.5,scale*0.3,0,0,Math.PI*2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
-/* -------------------- Interaction -------------------- */
-let pointerId = null; let picked = null; let lastPointer = null;
-function toLocalCoords(e){
-  const rect = canvas.getBoundingClientRect();
-  let clientX, clientY;
-  if(e.touches && e.touches[0]){ clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
-  else { clientX = e.clientX; clientY = e.clientY; }
-  return { x: clientX - rect.left, y: clientY - rect.top };
+/* pointer interactions */
+let pointerId = null, picked = null;
+function toLocal(e){
+  const r = canvas.getBoundingClientRect();
+  let cx, cy;
+  if(e.touches && e.touches[0]){ cx = e.touches[0].clientX; cy = e.touches[0].clientY; }
+  else { cx = e.clientX; cy = e.clientY; }
+  return { x: cx - r.left, y: cy - r.top };
 }
 function pickBoatAt(x,y){
-  let best=null, bestD=9999;
+  let best=null, bd=9999;
   for(const b of world.boats){
-    const dx=b.x-x, dy=b.y-y, d=Math.hypot(dx,dy);
-    if(d < Math.max(28, b.size*0.9) && d < bestD){ best=b; bestD=d; }
+    const p = b.pos();
+    const dx = p.x - x, dy = p.y - y, d = Math.hypot(dx,dy);
+    if(d < Math.max(20, b.size*0.9) && d < bd){ best = b; bd = d; }
   }
   return best;
 }
 canvas.addEventListener('pointerdown', (ev)=>{
   canvas.setPointerCapture(ev.pointerId);
   pointerId = ev.pointerId;
-  const pos = toLocalCoords(ev);
+  const pos = toLocal(ev);
   const b = pickBoatAt(pos.x, pos.y);
-  if(b){ picked = b; b.dragging = true; b.vx = 0; b.vy = 0; canvas.classList.add('grabbing'); }
-  else addBoatAt(pos.x, pos.y);
+  if(b){
+    picked = b; b.dragging = true;
+  } else {
+    // add a boat at nearest angle
+    const a = angleFromPoint(pos.x, pos.y);
+    addBoat(a);
+  }
 });
 canvas.addEventListener('pointermove', (ev)=>{
   if(pointerId !== ev.pointerId) return;
-  const pos = toLocalCoords(ev);
-  if(picked){ picked.x = pos.x; picked.y = pos.y; }
-  lastPointer = pos;
+  const pos = toLocal(ev);
+  if(picked){
+    // convert pointer to nearest angle along ellipse and set boat.angle and offset
+    const a = angleFromPoint(pos.x, pos.y);
+    picked.angle = a;
+    // offset: distance from ellipse centerline measured along normal
+    const eps = ellipseDistanceToPoint(a, pos.x, pos.y);
+    picked.offset = clamp(eps, -30, 30);
+  }
 });
 canvas.addEventListener('pointerup', (ev)=>{
   if(pointerId !== ev.pointerId) return;
   canvas.releasePointerCapture(ev.pointerId);
-  if(picked){ picked.dragging=false; picked.vx = rand(-0.2,0.2); picked.vy = rand(-0.1,0.1); picked=null; canvas.classList.remove('grabbing'); }
+  if(picked){ picked.dragging = false; picked = null; save(); }
   pointerId = null;
 });
 
-/* keyboard */
-window.addEventListener('keydown', (e)=>{
-  if(e.key === 'a') addBoatAt();
-  if(e.key === 'f') addFishAt();
-  if(e.key === 'l') addLilyAt();
-});
+/* geometry helpers */
+function angleFromPoint(x,y){
+  // rough inverse: find angle that maps to closest ellipse point
+  // use atan2 relative to center as starting guess
+  const dx = x - world.center.x, dy = y - world.center.y;
+  return Math.atan2(dy/world.ry, dx/world.rx);
+}
+function ellipseDistanceToPoint(angle, x, y){
+  // compute shortest radial distance from point to ellipse boundary along normal approx
+  const px = world.center.x + world.rx*Math.cos(angle);
+  const py = world.center.y + world.ry*Math.sin(angle);
+  const dx = x - px, dy = y - py;
+  // project onto normal (cos,sin)
+  const nx = Math.cos(angle), ny = Math.sin(angle);
+  return dx*nx + dy*ny;
+}
 
-/* -------------------- Controls binding -------------------- */
-document.getElementById('addBoat').addEventListener('click', ()=> addBoatAt());
-document.getElementById('addDuck').addEventListener('click', ()=> addDuckAt());
-document.getElementById('addFish').addEventListener('click', ()=> addFishAt());
-document.getElementById('addLily').addEventListener('click', ()=> addLilyAt());
+/* UI handlers */
+document.getElementById('add').addEventListener('click', ()=> addBoat());
+document.getElementById('addLily').addEventListener('click', ()=> addLily());
+document.getElementById('addFish').addEventListener('click', ()=> addFish());
 document.getElementById('calm').addEventListener('click', ()=>{
-  world.calmFactor = 0.2; setTimeout(()=> world.calmFactor = 1, 1400);
-  playBell();
+  world.calmFactor = 0.2; setTimeout(()=> world.calmFactor = 1, 1200);
 });
-document.getElementById('gust').addEventListener('click', ()=>{
-  world.wind += (Math.random()>0.5?1:-1)*(0.6 + Math.random()*0.8); playWind();
+document.getElementById('reset').addEventListener('click', ()=>{
+  if(confirm('Alles zurücksetzen?')){ world.boats=[]; world.lilies=[]; world.fish=[]; save(); updateInfo(); }
 });
-ui.toggleSunset.addEventListener('change', (e)=> { world.sunset = e.target.checked; saveState(); });
-ui.toggleSound.addEventListener('change', (e)=> { if(e.target.checked) audioEngine.resume(); else audioEngine.suspend(); saveState(); });
 
-/* -------------------- Add entity helpers -------------------- */
-function addBoatAt(x=null,y=null){
-  const rect = canvas.getBoundingClientRect(); const w=rect.width, h=rect.height;
-  const px = x===null ? rand(w*0.15,w*0.85) : x;
-  const py = y===null ? (h*0.44 + rand(-30,30)) : y;
-  const colors = ['#ff9f6a','#ffd66b','#8fd8a3','#9fb7ff','#c79bff'];
-  const b = new Boat(px, py, 38 + Math.random()*18, colors[Math.floor(Math.random()*colors.length)]);
-  world.boats.push(b); updateStatus(); saveState();
-}
-function addDuckAt(){
-  const rect = canvas.getBoundingClientRect(); const w=rect.width, h=rect.height;
-  const d = new Duck(rand(20,w-20), h*0.44 + rand(-30,30), 26 + Math.random()*18);
-  world.ducks.push(d); updateStatus(); saveState();
-}
-function addFishAt(){
-  const rect = canvas.getBoundingClientRect(); const w=rect.width, h=rect.height;
-  const f = new Fish(rand(10,w-10), rand(h*0.5+20, h-40), 12 + Math.random()*14, ['#8fd8a3','#9fb7ff','#ffb6c2'][Math.floor(Math.random()*3)]);
-  world.fish.push(f); updateStatus(); saveState();
-}
-function addLilyAt(){
-  const rect = canvas.getBoundingClientRect(); const w=rect.width, h=rect.height;
-  const l = new Lily(rand(20,w-20), h*0.44 + rand(-10,40), 20 + Math.random()*18);
-  world.lilies.push(l); updateStatus(); saveState();
-}
+/* keyboard shortcuts */
+window.addEventListener('keydown',(e)=>{
+  if(e.key==='a') addBoat();
+  if(e.key==='l') addLily();
+  if(e.key==='f') addFish();
+});
 
-/* initial seed */
-for(let i=0;i<3;i++) addBoatAt();
-for(let i=0;i<2;i++) addFishAt();
-for(let i=0;i<1;i++) addLilyAt();
-
-/* -------------------- UI status -------------------- */
-function updateStatus(){
-  ui.statusEl.textContent = `Boote: ${world.boats.length} • Fische: ${world.fish.length} • Seerosen: ${world.lilies.length}`;
-}
-
-/* -------------------- Autosave / Load -------------------- */
-function saveState(){
+/* status and save/load */
+const infoEl = document.getElementById('info');
+function updateInfo(){ infoEl.textContent = `Boote: ${world.boats.length} • Seerosen: ${world.lilies.length} • Fische: ${world.fish.length}`; }
+function save(){
   try{
     const s = {
-      boats: world.boats.map(b=>({x:b.x,y:b.y,size:b.size,color:b.color})),
-      fish: world.fish.map(f=>({x:f.x,y:f.y,size:f.size,color:f.color})),
+      boats: world.boats.map(b=>({angle:b.angle,offset:b.offset,color:b.color,size:b.size})),
       lilies: world.lilies.map(l=>({x:l.x,y:l.y,size:l.size})),
-      ducks: world.ducks.map(d=>({x:d.x,y:d.y,size:d.size})),
-      sunset: world.sunset,
-      audio: ui.toggleSound.checked
+      fish: world.fish.map(f=>({x:f.x,y:f.y,size:f.size,color:f.color}))
     };
-    localStorage.setItem('teich_state_v1', JSON.stringify(s));
-  } catch(e){ /* ignore */ }
+    localStorage.setItem('kreisboot_v1', JSON.stringify(s));
+  }catch(e){}
 }
-function loadState(){
+function load(){
   try{
-    const raw = localStorage.getItem('teich_state_v1'); if(!raw) return;
+    const raw = localStorage.getItem('kreisboot_v1'); if(!raw) return;
     const s = JSON.parse(raw);
-    world.boats=[]; world.fish=[]; world.lilies=[]; world.ducks=[];
-    if(s.boats) s.boats.forEach(o => world.boats.push(new Boat(o.x,o.y,o.size,o.color)));
-    if(s.fish) s.fish.forEach(o => world.fish.push(new Fish(o.x,o.y,o.size,o.color)));
+    world.boats = []; world.lilies = []; world.fish = [];
+    if(s.boats) s.boats.forEach(o => { const b = new Boat(o.angle, o.color, o.size); b.offset = o.offset||0; world.boats.push(b); });
     if(s.lilies) s.lilies.forEach(o => world.lilies.push(new Lily(o.x,o.y,o.size)));
-    if(s.ducks) s.ducks.forEach(o => world.ducks.push(new Duck(o.x,o.y,o.size)));
-    if(typeof s.sunset === 'boolean') { world.sunset = s.sunset; ui.toggleSunset.checked = s.sunset; }
-    if(typeof s.audio === 'boolean') { ui.toggleSound.checked = s.audio; if(s.audio) audioEngine.resume(); else audioEngine.suspend(); }
-    updateStatus();
-  } catch(e){}
+    if(s.fish) s.fish.forEach(o => world.fish.push(new Fish(o.x,o.y,o.size,o.color)));
+    updateInfo();
+  }catch(e){}
 }
-window.addEventListener('beforeunload', saveState);
-setInterval(saveState, 6000);
-loadState();
+load();
+if(world.boats.length===0){
+  // seed a few boats
+  addBoat(0.1); addBoat(2.3); addBoat(4.1);
+}
 
-/* -------------------- Simple audio engine (synthesized) -------------------- */
-const audioEngine = (function(){
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  let ctx = null;
-  let master = null;
-  let ambientGain = null;
-  let noiseGain = null;
-  let bellOsc = null;
-  let playing = false;
+/* autosave */
+setInterval(()=> save(), 5000);
+function updateInfoLoop(){ updateInfo(); requestAnimationFrame(updateInfoLoop); }
+updateInfoLoop();
 
-  function ensure(){
-    if(ctx) return;
-    ctx = new AudioContext();
-    master = ctx.createGain(); master.gain.value = 0.001; master.connect(ctx.destination);
-    ambientGain = ctx.createGain(); ambientGain.gain.value = 0.2; ambientGain.connect(master);
-    noiseGain = ctx.createGain(); noiseGain.gain.value = 0.06; noiseGain.connect(master);
+/* final: expose to console */
+window.kreisBoot = { addBoat, addLily, addFish, save, load };
 
-    // ambient slow oscillator (sine pads)
-    const oscA = ctx.createOscillator(); oscA.type='sine'; oscA.frequency.value = 110;
-    const oscB = ctx.createOscillator(); oscB.type='sine'; oscB.frequency.value = 176;
-    const mix = ctx.createGain(); mix.gain.value = 0.6;
-    oscA.connect(mix); oscB.connect(mix);
-    mix.connect(ambientGain);
-    oscA.start(); oscB.start();
-
-    // noise for water (brown-ish noise via filter on white noise)
-    const bufferSize = 2*ctx.sampleRate;
-    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) output[i] = Math.random()*2-1;
-    const white = ctx.createBufferSource(); white.buffer = noiseBuffer; white.loop = true;
-    const noiseFilter = ctx.createBiquadFilter(); noiseFilter.type='lowpass'; noiseFilter.frequency.value = 900;
-    white.connect(noiseFilter); noiseFilter.connect(noiseGain);
-    white.start();
-
-    // small reverb-ish using convolver is heavy — use delay+feedback
-    const delay = ctx.createDelay(); delay.delayTime.value = 0.6;
-    const fb = ctx.createGain(); fb.gain.value = 0.18;
-    delay.connect(fb); fb.connect(delay);
-    delay.connect(master);
-
-    // set master volume approachable
-    master.gain.value = 0.9 * 0.6 * (world.ambientVolume || 0.6);
-
-    playing = true;
-  }
-
-  function resume(){ ensure(); if(ctx && ctx.state === 'suspended') ctx.resume(); }
-  function suspend(){ if(ctx) ctx.suspend(); }
-
-  // small bell for calm
-  function playBell(){
-    ensure();
-    const now = ctx.currentTime;
-    const o = ctx.createOscillator(); o.type='sine'; o.frequency.value = 420;
-    const g = ctx.createGain(); g.gain.value = 0;
-    o.connect(g); g.connect(master);
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
-    o.frequency.exponentialRampToValueAtTime(220, now+1.5);
-    g.gain.exponentialRampToValueAtTime(0.0001, now+2.8);
-    o.start(now); o.stop(now+3.1);
-  }
-
-  // whoosh for wind
-  function playWind(){
-    ensure();
-    const now = ctx.currentTime;
-    const b = ctx.createBufferSource();
-    // synth wind by short filtered noise burst programmatically
-    const buf = ctx.createBuffer(1, ctx.sampleRate*1.2, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for(let i=0;i<d.length;i++){ d[i] = (Math.random()*2-1) * Math.max(0, 1 - i/d.length); }
-    b.buffer = buf; b.loop = false;
-    const f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = 1100;
-    const g = ctx.createGain(); g.gain.value = 0.0001;
-    b.connect(f); f.connect(g); g.connect(master);
-    g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.18, now+0.02); g.gain.exponentialRampToValueAtTime(0.0001, now+1.0);
-    b.start(now);
-  }
-
-  function setVolume(v){
-    if(master) master.gain.value = v;
-  }
-
-  return {
-    resume, suspend, playBell, playWind, setVolume
-  };
-})();
-
-/* convenience wrappers to trigger when UI toggles */
-function playBell(){ try{ audioEngine.playBell(); } catch(e){} }
-function playWind(){ try{ audioEngine.playWind(); } catch(e){} }
-
-/* initialize audio according to saved state */
-if(ui.toggleSound.checked) audioEngine.resume();
-
-/* -------------------- small UI update loop -------------------- */
-let lastFrame = performance.now();
-setInterval(()=> {
-  // update fps UI approximately
-  const now = performance.now();
-  const dt = (now - lastFrame)/1000; lastFrame = now;
-  ui.fpsEl.textContent = Math.round(1 / Math.max(1e-6, dt)) + ' fps';
-}, 900);
-
-/* -------------------- small helper / startup finished -------------------- */
-updateStatus();
-draw();
-
-/* expose some functions to console for tinkering */
-window.relaxTeich = {
-  addBoat: addBoatAt, addDuck: addDuckAt, addFish: addFishAt, addLily: addLilyAt,
-  calm: ()=> { world.calmFactor=0.2; setTimeout(()=> world.calmFactor=1,1400); playBell(); },
-  gust: ()=> { world.wind += (Math.random()>0.5?1:-1)*(0.5+Math.random()*0.8); playWind(); },
-  save: saveState, load: loadState
-};
+/* start animation */
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>
