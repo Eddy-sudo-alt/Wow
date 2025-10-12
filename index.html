@@ -1,110 +1,392 @@
 <!doctype html>
 <html lang="de">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Schiffe auf Wasser — Top-Down mit Sound</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mini Zerstörungs-Spiel</title>
 <style>
   :root{
-    --bg:#e8f9ff; --water1:#bfe8ff; --water2:#5fb0e6; --ui:#ffffffcc; --muted:#123;
+    --bg:#eaf6ff;
+    --panel:#ffffffdd;
+    --accent:#ff6b6b;
+    --ui:#2b2b2b;
   }
-  html,body{height:100%;margin:0;font-family:Inter,system-ui,Roboto,Arial;color:var(--muted);background:linear-gradient(180deg,#f8feff,#e8f9ff);}
-  header{padding:12px 16px}
-  h1{margin:0;font-size:18px}
-  .hint{font-size:13px;margin:4px 0 0 0;color:#345}
-  .controls{display:flex;gap:8px;padding:10px 16px;align-items:center;flex-wrap:wrap}
-  button{background:var(--ui);border:0;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(20,50,80,0.06);cursor:pointer}
-  .stage-wrap{display:flex;align-items:center;justify-content:center;padding:10px;flex:1}
-  .stage{width:100%;max-width:980px;height:74vh;min-height:420px;border-radius:18px;box-shadow:0 14px 40px rgba(20,40,80,0.08);overflow:hidden;position:relative;background:transparent}
-  canvas{display:block;width:100%;height:100%}
-  footer{padding:10px 16px;font-size:13px;color:#445;text-align:center}
-  .panel{position:absolute;left:14px;top:14px;background:var(--ui);padding:8px 10px;border-radius:10px;backdrop-filter:blur(6px);box-shadow:0 4px 12px rgba(0,0,0,0.06)}
-  .small{font-size:13px}
-  @media (max-width:640px){ h1{font-size:16px} .controls{padding:8px} }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial;background:linear-gradient(#d6f0ff,#eaf6ff);-webkit-font-smoothing:antialiased}
+  .game-wrap{display:flex;flex-direction:column;height:100vh}
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--panel);box-shadow:0 6px 18px rgba(20,30,60,0.08);z-index:20}
+  header .left{display:flex;gap:12px;align-items:center}
+  h1{font-size:16px;margin:0;color:var(--ui)}
+  .controls{display:flex;gap:8px;align-items:center}
+  .btn{background:white;border:1px solid #e3e9ef;padding:8px 10px;border-radius:10px;cursor:pointer;box-shadow:0 2px 6px rgba(20,30,60,0.06);user-select:none}
+  .btn.active{background:var(--accent);color:white;border-color:transparent;transform:translateY(-1px)}
+  .score{font-weight:600;color:#0b3b4a}
+  main{flex:1;display:flex}
+  #play-area{flex:1;position:relative;overflow:hidden}
+  canvas{position:absolute;inset:0;width:100%;height:100%}
+  .hud{position:absolute;left:12px;top:72px;background:var(--panel);padding:8px;border-radius:10px;box-shadow:0 8px 20px rgba(20,30,60,0.06)}
+  .spawn-row{position:absolute;right:12px;top:72px;background:var(--panel);padding:8px;border-radius:10px;display:flex;gap:8px;flex-direction:column;box-shadow:0 8px 20px rgba(20,30,60,0.06)}
+  .object{position:absolute;touch-action:none;user-select:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  /* simple SVG-friendly sizes */
+  .obj-house{width:120px;height:90px}
+  .obj-car{width:140px;height:70px}
+  .obj-tree{width:100px;height:140px}
+  .obj-plant{width:60px;height:60px}
+  footer{padding:10px 14px;text-align:center;color:#10323a;font-size:13px;background:transparent}
+  @media (max-width:600px){
+    .obj-house{width:84px;height:64px}
+    .obj-car{width:110px;height:56px}
+    .obj-tree{width:78px;height:110px}
+    .obj-plant{width:48px;height:48px}
+    header{padding:10px}
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>Schiffe auf Wasser — Top-Down mit Sound</h1>
-  <p class="hint">Meditatives Spiel • Boote kreisen automatisch • Tippe/Klicke = Boot hinzufügen • Ziehen zum lenken • Sound an/aus</p>
-</header>
+<div class="game-wrap">
+  <header>
+    <div class="left">
+      <h1>Mini-Zerstörer 🎯</h1>
+      <div style="color:#407b8b;margin-left:8px">Klick / Tippe ein Objekt, wähle Werkzeug und zerstöre!</div>
+    </div>
 
-<div class="controls">
-  <button id="add">+ Boot</button>
-  <button id="addLily">+ Seerose</button>
-  <button id="addFish">+ Fisch</button>
-  <button id="calm">Beruhigen</button>
-  <button id="mute">🔊 Aus/An</button>
-  <div style="flex:1"></div>
-  <button id="reset">Zurücksetzen</button>
+    <div class="controls">
+      <div class="score">Punkte: <span id="score">0</span></div>
+      <div class="btn" id="tool-fist" role="button" aria-pressed="true">👊 Faust</div>
+      <div class="btn" id="tool-hammer" role="button">🔨 Hammer</div>
+      <div class="btn" id="spawn-btn">+ Objekt</div>
+      <div class="btn" id="reset-btn">↺ Neu</div>
+    </div>
+  </header>
+
+  <main>
+    <div id="play-area">
+      <canvas id="fx"></canvas>
+      <div class="hud">Werkzeug: <strong id="tool-name">Faust</strong></div>
+      <div class="spawn-row" id="spawn-row">
+        <div class="btn" data-type="house">Haus</div>
+        <div class="btn" data-type="car">Auto</div>
+        <div class="btn" data-type="tree">Baum</div>
+        <div class="btn" data-type="plant">Pflanze</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>Made with ❤️ — Klick/Tipp auf Objekte zum Zerstören</footer>
 </div>
-
-<div class="stage-wrap">
-  <div class="stage" id="stage">
-    <canvas id="c"></canvas>
-    <div class="panel small" id="info">Boote: 0 • Seerosen: 0 • Fische: 0</div>
-  </div>
-</div>
-
-<footer>Tipp: A für Boot, L für Seerose, F für Fisch — Kein Wettbewerb, nur Entspannung.</footer>
 
 <script>
-/* --- Schiffe auf Wasser mit Sound --- */
-const canvas = document.getElementById('c');
+/* --- Setup canvas & audio context --- */
+const canvas = document.getElementById('fx');
 const ctx = canvas.getContext('2d');
-let DPR = Math.max(1, devicePixelRatio || 1);
-function resize(){ DPR = Math.max(1,devicePixelRatio||1); canvas.width=canvas.clientWidth*DPR; canvas.height=canvas.clientHeight*DPR; }
-window.addEventListener('resize',()=>{ resize(); draw(); });
+let W, H;
+function resize() {
+  W = canvas.width = playArea.clientWidth;
+  H = canvas.height = playArea.clientHeight;
+}
+const playArea = document.getElementById('play-area');
+window.addEventListener('resize', resize);
 resize();
 
-/* World */
-const world = { time:0, boats:[], lilies:[], fish:[], calmFactor:1, speedFactor:1, center:{x:0,y:0}, rx:260, ry:140, muted:false };
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-/* helpers */
-const rand=(a,b)=>Math.random()*(b-a)+a;
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+/* simple procedural sound generator */
+function playImpact(type = 'thud', intensity = 1) {
+  const now = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.value = (type === 'glass') ? 1200 : 120;
+  g.gain.setValueAtTime(0.0001, now);
+  if (type === 'glass') {
+    // high short ring
+    o.frequency.setValueAtTime(1200 * intensity, now);
+    g.gain.exponentialRampToValueAtTime(0.08 * intensity, now + 0.001);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+    const hpf = audioCtx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 800;
+    o.connect(hpf); hpf.connect(g); g.connect(audioCtx.destination);
+  } else {
+    // low thud + noise burst
+    o.type = 'sine';
+    o.frequency.setValueAtTime(120 * intensity, now);
+    g.gain.linearRampToValueAtTime(0.12 * intensity, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+    const lp = audioCtx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900;
+    o.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
 
-/* Audio */
-const audioContext = new (window.AudioContext||window.webkitAudioContext)();
-let waterLoop, plopBuffer;
-function loadSound(url,cb){ fetch(url).then(r=>r.arrayBuffer()).then(d=>audioContext.decodeAudioData(d,cb)); }
-function playPlop(){ if(world.muted || !plopBuffer) return; const s=audioContext.createBufferSource(); s.buffer=plopBuffer; s.connect(audioContext.destination); s.start(); }
-function playWaterLoop(){ if(world.muted) return; if(waterLoop) return; const s=audioContext.createBufferSource(); s.buffer=waterLoop; s.loop=true; s.connect(audioContext.destination); s.start(); waterLoopPlayer=s; }
-
-/* load basic sounds (small plop + water ambient) */
-loadSound('https://cdn.jsdelivr.net/gh/eddy-website/samples/plop.mp3',b=>plopBuffer=b);
-loadSound('https://cdn.jsdelivr.net/gh/eddy-website/samples/waterloop.mp3',b=>{waterLoop=b; playWaterLoop();});
-
-/* Boat class */
-class Boat{ constructor(angle,color='#ff9f6a',size=28){ this.angle=angle; this.offset=rand(-12,12); this.speed=rand(0.18,0.36); this.color=color; this.size=size; this.dragging=false; this.id='b_'+Math.random().toString(36).slice(2,9);}
-  pos(){ const cx=world.center.x,cy=world.center.y,rx=world.rx,ry=world.ry,a=this.angle; let x=cx+rx*Math.cos(a),y=cy+ry*Math.sin(a); const nx=Math.cos(a),ny=Math.sin(a); x+=this.offset*nx; y+=this.offset*ny; return {x,y};}
-  update(dt){ if(!this.dragging){ const wobble=Math.sin(world.time*1.5+(this.id.charCodeAt(2)||0))*0.03; this.angle+=(this.speed*(0.6+0.4*world.calmFactor)+wobble*0.05)*dt*world.speedFactor; this.offset+=Math.sin(world.time*0.7+this.angle*2)*0.02; this.offset=clamp(this.offset,-24,24);} }
-  draw(ctx){ const p=this.pos(),s=this.size*DPR; ctx.save(); ctx.translate(p.x*DPR,p.y*DPR); const rx=world.rx,ry=world.ry,a=this.angle; const tx=-rx*Math.sin(a),ty=ry*Math.cos(a); const rot=Math.atan2(ty,tx); ctx.rotate(rot); ctx.beginPath(); ctx.ellipse(0,s*0.14,s*0.8*s*0.5,0,0,Math.PI*2); ctx.fillStyle="rgba(0,0,0,0.08)"; ctx.fill(); ctx.beginPath(); ctx.moveTo(-s*0.6,0); ctx.quadraticCurveTo(0,s*0.7,s*0.6,0); ctx.lineTo(s*0.5,s*0.22); ctx.lineTo(-s*0.5,s*0.22); ctx.closePath(); ctx.fillStyle=this.color; ctx.fill(); ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fillRect(-s*0.22,-s*0.05,s*0.44,s*0.14); ctx.restore(); }
+    // add short noise click
+    const bufferSize = 2*audioCtx.sampleRate;
+    const noiseBuf = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    let data = noiseBuf.getChannelData(0);
+    for (let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize) * 0.5 * intensity;
+    const nb = audioCtx.createBufferSource(); nb.buffer = noiseBuf;
+    const noiseGain = audioCtx.createGain(); noiseGain.gain.setValueAtTime(0.02*intensity, now);
+    nb.connect(noiseGain); noiseGain.connect(audioCtx.destination);
+    nb.start(now); nb.stop(now+0.05);
+  }
+  o.start(now); o.stop(now+1.0);
 }
 
-/* Lily & Fish same as previous code (omitted for brevity, can reuse previous classes) */
-// ... same as earlier
+/* --- Game objects & logic --- */
+const objDefs = {
+  house: {w:120,h:90,value:30,sound:'thud'},
+  car: {w:140,h:70,value:20,sound:'thud'},
+  tree: {w:100,h:140,value:15,sound:'thud'},
+  plant: {w:60,h:60,value:5,sound:'glass'}
+};
 
-/* Functions for adding boats, lilies, fish, pointer interactions same as before */
+let objects = [];
+let particles = [];
+let score = 0;
+const scoreEl = document.getElementById('score');
 
-// UI handlers
-document.getElementById('add').addEventListener('click',()=>{ addBoat(); playPlop(); });
-document.getElementById('addLily').addEventListener('click',addLily);
-document.getElementById('addFish').addEventListener('click',addFish);
-document.getElementById('calm').addEventListener('click',()=>{ world.calmFactor=0.2; setTimeout(()=>world.calmFactor=1,1200); });
-document.getElementById('reset').addEventListener('click',()=>{ world.boats=[]; world.lilies=[]; world.fish=[]; updateInfo(); save(); });
-document.getElementById('mute').addEventListener('click',()=>{ world.muted=!world.muted; if(!world.muted) playWaterLoop(); });
+function rand(min,max){return Math.random()*(max-min)+min}
 
-// Initialize a few boats
-if(world.boats.length===0){ addBoat(0.1); addBoat(2.3); addBoat(4.1); }
+function spawn(type, x, y) {
+  const def = objDefs[type];
+  const el = document.createElement('div');
+  el.className = 'object obj-'+type;
+  el.dataset.type = type;
+  el.style.width = def.w + 'px';
+  el.style.height = def.h + 'px';
+  const px = (x !== undefined) ? x : rand(60, playArea.clientWidth - def.w - 60);
+  const py = (y !== undefined) ? y : rand(playArea.clientHeight*0.3, playArea.clientHeight - def.h - 40);
+  el.style.left = px + 'px';
+  el.style.top = py + 'px';
+  el.style.zIndex = 10 + Math.floor(py);
+  // draw inline SVG for each object
+  el.innerHTML = getSVGFor(type, def.w, def.h);
+  playArea.appendChild(el);
 
-/* Animation loop same as previous code */
-let last=performance.now();
-function frame(now){ const dt=Math.min(0.05,(now-last)/1000); last=now; world.time+=dt; world.boats.forEach(b=>b.update(dt)); world.fish.forEach((f,i)=>{ f.x+=Math.sin(world.time*1.5+i)*0.02; f.y+=Math.cos(world.time*1.9+i)*0.015; }); draw(); requestAnimationFrame(frame); }
-requestAnimationFrame(frame);
+  const obj = {type, el, w:def.w, h:def.h, x:px, y:py, hp:3};
+  objects.push(obj);
 
-/* Draw function also includes lilies, fish, boats, water as before */
+  // attach pointer listener
+  el.addEventListener('pointerdown', (ev)=> {
+    ev.preventDefault();
+    useToolOn(obj, ev.clientX, ev.clientY);
+  });
+}
 
+/* SVG renderers (simple, stylized) */
+function getSVGFor(type,w,h){
+  if (type === 'house') {
+    return `<svg viewBox="0 0 120 90" width="${w}" height="${h}" aria-hidden>
+      <rect x="12" y="36" width="96" height="44" rx="4" fill="#ffd6a5"/>
+      <polygon points="60,6 10,36 110,36" fill="#ff8fa3"/>
+      <rect x="28" y="50" width="22" height="30" fill="#6b4f3a"/>
+      <rect x="72" y="50" width="26" height="24" fill="#6b4f3a"/>
+    </svg>`;
+  } else if (type === 'car') {
+    return `<svg viewBox="0 0 140 70" width="${w}" height="${h}" aria-hidden>
+      <rect x="10" y="28" width="120" height="28" rx="8" fill="#79c2ff"/>
+      <circle cx="36" cy="58" r="8" fill="#222"/>
+      <circle cx="104" cy="58" r="8" fill="#222"/>
+      <rect x="30" y="16" width="80" height="22" rx="6" fill="#9fe7ff"/>
+    </svg>`;
+  } else if (type === 'tree') {
+    return `<svg viewBox="0 0 100 140" width="${w}" height="${h}" aria-hidden>
+      <rect x="44" y="96" width="12" height="30" rx="2" fill="#8b5a2b"/>
+      <circle cx="50" cy="60" r="38" fill="#6fcf97"/>
+      <circle cx="30" cy="46" r="18" fill="#4fb070"/>
+      <circle cx="70" cy="46" r="18" fill="#4fb070"/>
+    </svg>`;
+  } else { // plant
+    return `<svg viewBox="0 0 60 60" width="${w}" height="${h}" aria-hidden>
+      <rect x="22" y="36" width="16" height="12" rx="4" fill="#c97b4a"/>
+      <path d="M30 36 C28 28, 18 26, 18 18" stroke="#3aa76a" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M30 36 C32 28, 42 26, 42 18" stroke="#3aa76a" stroke-width="4" fill="none" stroke-linecap="round"/>
+    </svg>`;
+  }
+}
+
+/* tools */
+let tool = 'fist';
+document.getElementById('tool-fist').addEventListener('click', ()=> setTool('fist'));
+document.getElementById('tool-hammer').addEventListener('click', ()=> setTool('hammer'));
+function setTool(t){
+  tool = t;
+  document.getElementById('tool-name').textContent = (t==='fist') ? 'Faust' : 'Hammer';
+  document.getElementById('tool-fist').classList.toggle('active', t==='fist');
+  document.getElementById('tool-hammer').classList.toggle('active', t==='hammer');
+}
+
+/* spawn controls */
+document.getElementById('spawn-btn').addEventListener('click', ()=> randomSpawn());
+document.getElementById('reset-btn').addEventListener('click', resetGame);
+document.querySelectorAll('#spawn-row .btn').forEach(b=>{
+  b.addEventListener('click', ()=> spawn(b.dataset.type));
+});
+
+/* game interactions */
+function useToolOn(obj, cx, cy){
+  // start audio context on first user gesture
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  // visual pop
+  flashAt(obj.x + obj.w/2, obj.y + obj.h/2);
+  // sound
+  const def = objDefs[obj.type];
+  const intensity = (tool==='hammer') ? 1.6 : 1.0;
+  playImpact(def.sound, intensity);
+  // damage logic
+  obj.hp -= (tool==='hammer') ? 2 : 1;
+  spawnParticles(obj.x + obj.w/2, obj.y + obj.h/2, obj.type, intensity);
+  shakeElement(obj.el, intensity*6);
+  if (obj.hp <= 0) {
+    // destroy
+    destroyObject(obj);
+  } else {
+    // slightly wiggle
+    obj.el.animate([{transform:'translateY(0) rotate(0)'},{transform:`translateY(-6px) rotate(${(tool==='hammer')?6:-4}deg)`},{transform:'translateY(0) rotate(0)'}], {duration:260, easing:'cubic-bezier(.2,.8,.2,1)'});
+  }
+}
+
+/* destroy: remove visual, score, debris */
+function destroyObject(obj){
+  const v = objDefs[obj.type].value;
+  addScore(v);
+  spawnDebris(obj.x + obj.w/2, obj.y + obj.h/2, obj.type);
+  obj.el.animate([{opacity:1, transform:'scale(1)'},{opacity:0, transform:'scale(0.6) rotate(8deg)'}],{duration:400,easing:'ease-in'});
+  setTimeout(()=> {
+    try{ playArea.removeChild(obj.el);}catch(e){}
+    objects = objects.filter(o=>o!==obj);
+  },380);
+}
+
+/* scoring */
+function addScore(n){
+  score += n;
+  scoreEl.textContent = score;
+  // quick pop
+  scoreEl.animate([{transform:'scale(1)'},{transform:'scale(1.12)'} ,{transform:'scale(1)'}],{duration:260});
+}
+
+/* visual fx: small flash */
+function flashAt(x,y){
+  const a = document.createElement('div');
+  a.style.position='absolute'; a.style.left = (x-60)+'px'; a.style.top=(y-60)+'px';
+  a.style.width='120px'; a.style.height='120px'; a.style.borderRadius='60px'; a.style.pointerEvents='none';
+  a.style.background='radial-gradient(circle, rgba(255,255,255,0.9), rgba(255,255,255,0.0) 60%)';
+  a.style.zIndex=9999; a.style.opacity=0.9;
+  playArea.appendChild(a);
+  a.animate([{opacity:0.9, transform:'scale(0.6)'},{opacity:0, transform:'scale(1.8)'}],{duration:420,easing:'cubic-bezier(.2,.8,.2,1)'});
+  setTimeout(()=>a.remove(),430);
+}
+
+/* element shake */
+function shakeElement(el, px){
+  el.animate([{transform:'translateX(0)'},{transform:`translateX(${px}px)`},{transform:`translateX(-${px}px)`},{transform:'translateX(0)'}],{duration:300,iterations:1});
+}
+
+/* particles & debris using canvas for performance */
+function spawnParticles(x,y,type,intensity=1){
+  const count = Math.floor(6 * intensity) + (type==='house'?8:0);
+  for (let i=0;i<count;i++){
+    particles.push({
+      x,y,
+      vx:rand(-3,3)*intensity,
+      vy:rand(-6,-1)*intensity,
+      life: rand(40,90),
+      size: rand(2,8),
+      col: colorFor(type),
+      grav: 0.18 + Math.random()*0.08
+    });
+  }
+}
+
+function spawnDebris(x,y,type){
+  const pieces = 8 + (type==='house'?8:0);
+  for (let i=0;i<pieces;i++){
+    particles.push({
+      x,y,
+      vx:rand(-6,6),
+      vy:rand(-8,-2),
+      life: rand(50,120),
+      size: rand(4,16),
+      col: colorFor(type,true),
+      grav: 0.22 + Math.random()*0.12,
+      spin: rand(-0.2,0.2),
+      rot: rand(0,Math.PI*2)
+    });
+  }
+}
+
+function colorFor(type, dark=false){
+  if (type==='house') return dark ? '#c6866a' : '#ffd6a5';
+  if (type==='car') return dark ? '#5aa7d1' : '#79c2ff';
+  if (type==='tree') return dark ? '#2f8a52' : '#6fcf97';
+  return dark ? '#a26b4a' : '#c97b4a';
+}
+
+/* main render loop */
+let last = performance.now();
+function loop(t){
+  const dt = t - last;
+  last = t;
+  // clear
+  ctx.clearRect(0,0,W,H);
+
+  // update and draw particles
+  for (let i = particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.vy += p.grav;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= dt * 0.6;
+    p.rot = (p.rot || 0) + (p.spin || 0);
+    // draw
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    if (p.rot) ctx.rotate(p.rot);
+    ctx.fillStyle = p.col;
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life/120));
+    ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+    ctx.restore();
+    if (p.y > H + 100 || p.life <= 0) particles.splice(i,1);
+  }
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* random spawn helper */
+function randomSpawn(){
+  const types = Object.keys(objDefs);
+  spawn(types[Math.floor(Math.random()*types.length)]);
+}
+
+/* initial population */
+for (let i=0;i<5;i++) randomSpawn();
+
+/* reset */
+function resetGame(){
+  objects.forEach(o=>{ try{ o.el.remove(); }catch(e){} });
+  objects = []; particles = []; score = 0; scoreEl.textContent = 0;
+  for (let i=0;i<4;i++) randomSpawn();
+}
+
+/* enable pointer capture to support touch; also allow dragging to reposition objects (optional) */
+playArea.addEventListener('pointerdown', (ev)=>{
+  // if clicked on empty area, spawn (for convenience)
+  if (ev.target === playArea || ev.target === canvas) {
+    spawn('plant', ev.clientX - playArea.getBoundingClientRect().left - 30, ev.clientY - playArea.getBoundingClientRect().top - 30);
+  }
+});
+
+/* make sure canvas resizes with area */
+const ro = new ResizeObserver(()=> resize());
+ro.observe(playArea);
+
+/* start suspended AudioContext on first user gesture (some browsers require) */
+document.addEventListener('pointerdown', ()=> {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}, {once:true});
+
+/* small accessibility tweak: toggle tool with keyboard (H / F) */
+document.addEventListener('keydown', (e)=>{
+  if (e.key.toLowerCase()==='h') setTool('hammer');
+  if (e.key.toLowerCase()==='f') setTool('fist');
+  if (e.key.toLowerCase()==='r') resetGame();
+});
 </script>
 </body>
 </html>
